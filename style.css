@@ -1,0 +1,179 @@
+/* ================================================================
+   SKY DASH: LEGENDS — style.css
+   Warm, colorful "premium mobile game" theme. Mobile-first;
+   scales cleanly up to tablet/desktop widths too.
+   ================================================================ */
+:root{
+  --coin:#ffd23f; --gem:#6be3ff; --accent:#ff6b6b; --accent2:#4dd4a8;
+  --purple:#8c6bff; --gold:#ffb347; --ink:#233047;
+  --panel:#ffffff; --panel-soft:#f2f6fb;
+  --shadow: 0 10px 24px rgba(20,30,60,.18);
+}
+*{ margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none; }
+html,body{ height:100%; overflow:hidden; font-family:'Nunito',sans-serif; background:#0e1626; }
+#gameWrap{ position:relative; width:100vw; height:100vh; height:100dvh; overflow:hidden; }
+canvas{ display:block; touch-action:none; }
+.display-font{ font-family:'Baloo 2', sans-serif; }
+.hidden{ display:none !important; }
+
+/* ---------------- generic screen ---------------- */
+.screen{
+  position:absolute; inset:0; z-index:10;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  background:linear-gradient(180deg,#8fd6ff 0%, #d7f3ff 55%, #eefaff 100%);
+  padding:16px; overflow-y:auto;
+}
+.screen-scroll{ width:100%; max-width:460px; display:flex; flex-direction:column; align-items:center; gap:12px; margin:auto 0; }
+
+/* ---------------- intro ---------------- */
+#introScreen{ background:radial-gradient(circle at 50% 40%, #1c2b52, #050813 75%); z-index:50; gap:16px; }
+.intro-logo{ font-size:clamp(30px,9vw,54px); color:#fff; text-align:center; letter-spacing:3px;
+  text-shadow:0 0 30px rgba(140,107,255,.7); animation:introFade 2.2s ease forwards; opacity:0; transform:scale(.8); }
+.intro-logo span{ color:#ffd23f; }
+.intro-sub{ color:#9fb3ff; letter-spacing:4px; font-size:12px; font-weight:700; opacity:0; animation:introFade2 2.2s ease forwards; animation-delay:.6s; }
+@keyframes introFade{ 0%{opacity:0; transform:scale(.8);} 60%{opacity:1; transform:scale(1.04);} 100%{opacity:1; transform:scale(1);} }
+@keyframes introFade2{ 0%{opacity:0;} 100%{opacity:1;} }
+
+.logo-title{ font-size:clamp(30px,8vw,50px); font-weight:800; color:#fff; text-align:center; line-height:1;
+  -webkit-text-stroke:3px #2a5db0; text-shadow:0 6px 0 #2a5db0, 0 14px 18px rgba(20,50,100,.35); }
+.legends-tag{ display:inline-block; font-size:.55em; color:#ffd23f; -webkit-text-stroke:2px #a5720a; letter-spacing:3px; margin-top:4px; }
+.menu-hero-name{ color:var(--ink); font-weight:700; font-size:15px; opacity:.7; }
+
+/* ---------------- buttons ---------------- */
+.btn{
+  font-family:'Baloo 2', sans-serif; font-weight:700; font-size:17px; letter-spacing:.5px;
+  border:none; border-radius:18px; padding:15px 28px; cursor:pointer; color:#fff;
+  box-shadow: var(--shadow), inset 0 -4px 0 rgba(0,0,0,.15);
+  transition:transform .08s ease; width:100%; max-width:280px;
+}
+.btn:active{ transform:scale(.96) translateY(2px); box-shadow: var(--shadow); }
+.btn-primary{ background:linear-gradient(180deg,#ff9a4d,#ff6b6b); }
+.btn-secondary{ background:linear-gradient(180deg,#7bd8ff,#3fa9f5); }
+.btn-purple{ background:linear-gradient(180deg,#b39dff,#8c6bff); }
+.btn-green{ background:linear-gradient(180deg,#7be0b8,#3fbf8f); }
+.btn-gold{ background:linear-gradient(180deg,#ffe08a,#ffb347); }
+.btn-chest{ background:linear-gradient(180deg,#c78aff,#7a3ec9); }
+.btn-small{ padding:9px 16px; font-size:13px; border-radius:12px; width:auto; }
+.btn-small-grid{ padding:12px 6px; font-size:13px; }
+.btn-ghost{ background:rgba(255,255,255,.6); color:var(--ink); box-shadow:var(--shadow), inset 0 -3px 0 rgba(0,0,0,.06); }
+.btn:disabled{ opacity:.4; cursor:default; }
+.menu-btn-row{ display:flex; flex-direction:column; gap:10px; width:100%; max-width:300px; margin-top:14px; }
+.menu-btn-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+
+/* ---------------- top bars ---------------- */
+.icon-row{ position:absolute; top:12px; left:12px; right:12px; display:flex; justify-content:space-between; align-items:center; z-index:2; gap:8px; }
+.icon-btn{ width:42px; height:42px; border-radius:14px; background:rgba(255,255,255,.75); flex-shrink:0;
+  display:flex; align-items:center; justify-content:center; font-size:19px; box-shadow:var(--shadow); border:none; cursor:pointer; color:var(--ink); }
+.currency-cluster{ display:flex; gap:6px; flex-wrap:wrap; justify-content:center; }
+.currency-pill{ display:flex; align-items:center; gap:5px; background:rgba(255,255,255,.85); border-radius:20px; padding:7px 11px;
+  font-weight:800; color:var(--ink); box-shadow:var(--shadow); font-family:'Baloo 2'; font-size:13px; }
+.coin-dot{ width:14px; height:14px; border-radius:50%; background:radial-gradient(circle at 35% 30%, #fff3b0, var(--coin) 60%, #d99a00); display:inline-block; }
+.gem-dot{ width:13px; height:13px; background:linear-gradient(135deg,#c8faff,var(--gem)); transform:rotate(45deg); border-radius:3px; display:inline-block; }
+
+/* ---------------- panels/lists ---------------- */
+.panel-title{ font-size:24px; font-weight:800; color:var(--ink); margin-bottom:2px; text-align:center; }
+.panel-card{ width:100%; background:var(--panel); border-radius:20px; box-shadow:var(--shadow); padding:14px; display:flex; flex-direction:column; gap:10px; }
+.scroll-list{ width:100%; max-height:56vh; overflow-y:auto; display:flex; flex-direction:column; gap:10px; padding-right:2px; }
+.lb-note{ font-size:11px; color:#8a94a8; text-align:center; padding:0 10px; }
+
+.tab-row{ display:flex; gap:6px; width:100%; margin:4px 0; }
+.tab-btn{ flex:1; font-family:'Baloo 2'; font-weight:700; font-size:12px; padding:9px 4px; border-radius:12px; border:none;
+  background:rgba(255,255,255,.55); color:#5a6785; cursor:pointer; }
+.tab-btn.active{ background:var(--purple); color:#fff; box-shadow:var(--shadow); }
+
+.char-card{ display:flex; align-items:center; gap:12px; background:var(--panel-soft); border-radius:16px; padding:10px 12px; border:2px solid transparent; }
+.char-card.selected{ border-color:var(--accent2); background:#e9fff5; }
+.char-card.locked{ opacity:.65; }
+.char-avatar{ width:52px; height:52px; border-radius:14px; flex-shrink:0; }
+.char-info{ flex:1; min-width:0; }
+.char-name{ font-family:'Baloo 2'; font-weight:700; color:var(--ink); font-size:15px; }
+.char-desc{ font-size:11px; color:#7a869c; line-height:1.3; }
+.char-action{ flex-shrink:0; display:flex; flex-direction:column; gap:4px; align-items:flex-end; }
+
+.mission-card{ background:var(--panel-soft); border-radius:16px; padding:12px 14px; }
+.mission-top{ display:flex; justify-content:space-between; align-items:center; gap:8px; }
+.mission-name{ font-family:'Baloo 2'; font-weight:700; color:var(--ink); font-size:14px; }
+.mission-reward{ font-size:11px; font-weight:800; color:#d99a00; white-space:nowrap; }
+.bar-track{ width:100%; height:8px; background:#e2e8f2; border-radius:6px; margin-top:8px; overflow:hidden; }
+.bar-fill{ height:100%; background:linear-gradient(90deg,#4dd4a8,#2fae86); border-radius:6px; transition:width .3s ease; }
+.mission-claim{ margin-top:8px; }
+
+.lb-row{ display:flex; align-items:center; gap:10px; background:var(--panel-soft); border-radius:14px; padding:10px 14px; }
+.lb-rank{ font-family:'Baloo 2'; font-weight:800; font-size:15px; color:var(--purple); width:24px; }
+.lb-score{ margin-left:auto; font-family:'Baloo 2'; font-weight:800; color:var(--ink); }
+.lb-date{ font-size:11px; color:#9aa5b8; }
+
+.settings-row{ display:flex; align-items:center; justify-content:space-between; background:var(--panel-soft); border-radius:14px; padding:11px 15px; gap:10px; }
+.settings-label{ font-weight:700; color:var(--ink); font-size:14px; flex-shrink:0; }
+.switch{ width:48px; height:26px; background:#d8dfe9; border-radius:20px; position:relative; cursor:pointer; transition:background .2s; flex-shrink:0; }
+.switch.on{ background:var(--accent2); }
+.switch .knob{ position:absolute; top:3px; left:3px; width:20px; height:20px; background:#fff; border-radius:50%; transition:left .18s; box-shadow:0 2px 4px rgba(0,0,0,.2); }
+.switch.on .knob{ left:25px; }
+.slider{ width:120px; }
+.select-input{ font-family:'Nunito'; font-weight:700; border-radius:8px; border:1px solid #d8dfe9; padding:6px 8px; color:var(--ink); }
+.controller-hint{ font-size:11px; color:#8a94a8; margin-top:10px; text-align:center; }
+
+.stats-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; width:100%; }
+.stat-box{ background:var(--panel-soft); border-radius:14px; padding:12px; text-align:center; }
+.stat-box .v{ font-family:'Baloo 2'; font-weight:800; font-size:19px; color:var(--ink); }
+.stat-box .l{ font-size:10px; color:#8a94a8; font-weight:700; letter-spacing:.5px; margin-top:2px; }
+.profile-level-row{ width:100%; }
+.profile-level{ text-align:center; color:var(--ink); font-size:16px; margin-bottom:6px; }
+
+.stage-card{ display:flex; align-items:center; gap:12px; background:var(--panel-soft); border-radius:16px; padding:12px 14px; }
+.stage-card.locked{ opacity:.5; }
+.stage-name{ font-family:'Baloo 2'; font-weight:700; color:var(--ink); font-size:14px; flex:1; }
+.stage-stars{ display:flex; gap:2px; font-size:14px; }
+
+/* ---------------- HUD ---------------- */
+.hud{ position:absolute; top:0; left:0; width:100%; padding:14px 14px; display:flex; justify-content:space-between; align-items:flex-start; z-index:5; pointer-events:none; }
+.hud-left, .hud-right{ display:flex; flex-direction:column; gap:6px; align-items:flex-end; pointer-events:auto; }
+.hud-left{ align-items:flex-start; }
+.hud-score{ font-family:'Baloo 2'; font-weight:800; font-size:24px; color:#fff; text-shadow:0 3px 0 rgba(0,0,0,.2); }
+.hearts-row{ display:flex; gap:3px; }
+.heart{ font-size:16px; filter:drop-shadow(0 2px 2px rgba(0,0,0,.3)); }
+.hud-pill{ display:flex; align-items:center; gap:5px; background:rgba(255,255,255,.85); border-radius:16px; padding:5px 10px; font-family:'Baloo 2'; font-weight:700; color:var(--ink); font-size:13px; box-shadow:var(--shadow); }
+.pause-btn{ width:38px; height:38px; border-radius:12px; background:rgba(255,255,255,.85); border:none; box-shadow:var(--shadow); font-size:16px; cursor:pointer; }
+.powerup-active-row{ position:absolute; top:64px; left:14px; display:flex; gap:6px; flex-wrap:wrap; max-width:60%; z-index:5; }
+.powerup-chip{ background:rgba(255,255,255,.9); border-radius:12px; padding:5px 9px; font-size:11px; font-weight:800; color:var(--ink); box-shadow:var(--shadow); }
+.boss-hp-wrap{ position:absolute; top:14px; left:50%; transform:translateX(-50%); width:60%; max-width:340px; z-index:6; text-align:center; }
+.boss-name{ color:#fff; font-size:14px; text-shadow:0 2px 4px rgba(0,0,0,.4); margin-bottom:4px; }
+.boss-hp-track{ width:100%; height:12px; background:rgba(0,0,0,.35); border-radius:8px; overflow:hidden; border:2px solid rgba(255,255,255,.4); }
+.boss-hp-fill{ height:100%; background:linear-gradient(90deg,#ff5470,#ff9a4d); transition:width .2s ease; }
+.touch-hint{ position:absolute; bottom:16px; width:100%; text-align:center; color:rgba(255,255,255,.85); font-weight:700; font-size:11px; letter-spacing:1px; text-shadow:0 2px 4px rgba(0,0,0,.3); z-index:5; pointer-events:none; }
+.stage-banner{ position:absolute; top:40%; left:0; width:100%; text-align:center; z-index:8; font-family:'Baloo 2'; font-weight:800; font-size:28px; color:#fff;
+  text-shadow:0 4px 12px rgba(0,0,0,.5); animation:bannerPop 1.6s ease forwards; pointer-events:none; }
+@keyframes bannerPop{ 0%{opacity:0; transform:scale(.7);} 20%{opacity:1; transform:scale(1.1);} 30%{transform:scale(1);} 80%{opacity:1;} 100%{opacity:0;} }
+
+/* ---------------- modals ---------------- */
+.modal-overlay{ position:absolute; inset:0; background:rgba(10,20,40,.55); backdrop-filter:blur(3px); z-index:15; display:flex; align-items:center; justify-content:center; padding:16px; }
+.modal-card{ background:var(--panel); border-radius:22px; padding:24px; display:flex; flex-direction:column; gap:12px; align-items:center; box-shadow:var(--shadow); width:260px; max-width:90vw; animation:pop .22s ease; }
+@keyframes pop{ from{ transform:scale(.85); opacity:0; } to{ transform:scale(1); opacity:1; } }
+
+.daily-grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:6px; width:100%; margin:10px 0; }
+.daily-day{ aspect-ratio:1; background:var(--panel-soft); border-radius:10px; display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:9px; font-weight:800; color:#8a94a8; gap:2px; }
+.daily-day.done{ background:linear-gradient(180deg,#7be0b8,#3fbf8f); color:#fff; }
+.daily-day.today{ border:2px solid var(--accent); background:#fff3e0; color:var(--accent); }
+
+.chest-icon{ font-size:64px; text-align:center; animation:chestBob 1.2s ease-in-out infinite; }
+@keyframes chestBob{ 0%,100%{ transform:translateY(0) rotate(-2deg);} 50%{ transform:translateY(-6px) rotate(2deg);} }
+.chest-reward{ font-family:'Baloo 2'; font-weight:800; font-size:18px; color:var(--gold); text-align:center; }
+
+/* gameover card */
+.gameover-card{ animation:pop .25s ease; }
+.go-stats{ display:flex; justify-content:space-around; width:100%; margin:12px 0; }
+.go-stat{ text-align:center; }
+.go-stat .v{ font-family:'Baloo 2'; font-weight:800; font-size:22px; color:var(--ink); }
+.go-stat .l{ font-size:10px; color:#8a94a8; font-weight:700; letter-spacing:1px; }
+.new-best-badge{ background:linear-gradient(90deg,#ffd23f,#ff9a4d); color:#fff; font-family:'Baloo 2'; font-weight:800; padding:6px 16px; border-radius:20px; font-size:12px; box-shadow:var(--shadow); }
+
+/* touch control zones (invisible, cover screen halves during play) */
+#leftTouchZone, #rightTouchZone{ position:absolute; bottom:0; top:0; width:50%; z-index:4; }
+#leftTouchZone{ left:0; } #rightTouchZone{ right:0; }
+
+::-webkit-scrollbar{ width:6px; }
+::-webkit-scrollbar-thumb{ background:#c3cede; border-radius:4px; }
+
+@media (min-width:700px){
+  .screen-scroll{ max-width:420px; }
+}
