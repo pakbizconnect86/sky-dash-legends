@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Sky Dash: Legends</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Nunito:wght@600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+<div id="gameWrap">
+
+  <canvas id="game"></canvas>
+
+  <!-- ============ CINEMATIC INTRO ============ -->
+  <div class="screen" id="introScreen">
+    <div class="intro-logo display-font" id="introLogo">SKY DASH<br><span>LEGENDS</span></div>
+    <div class="intro-sub" id="introSub">A CINEMATIC SKY-RUNNING ADVENTURE</div>
+    <button class="btn btn-ghost display-font hidden" id="introSkipBtn">TAP TO CONTINUE</button>
+  </div>
+
+  <!-- ============ IN-GAME HUD ============ -->
+  <div class="hud hidden" id="hud">
+    <div class="hud-left">
+      <div class="hud-score" id="hudScore">0</div>
+      <div class="hearts-row" id="heartsRow"></div>
+      <div class="combo-pill hidden" id="comboPill">🔥 <span id="comboVal">0</span></div>
+    </div>
+    <div class="hud-right">
+      <button class="pause-btn" id="pauseBtn">⏸</button>
+      <div class="hud-pill"><span class="coin-dot"></span><span id="hudCoins">0</span></div>
+      <div class="hud-pill"><span class="gem-dot"></span><span id="hudGems">0</span></div>
+      <div class="hud-pill hidden" id="hudTimerPill">⏱ <span id="hudTimer">60</span>s</div>
+    </div>
+  </div>
+  <div class="countdown-overlay hidden" id="countdownOverlay"><div class="countdown-num display-font" id="countdownNum">3</div></div>
+  <div class="powerup-active-row" id="powerupRow"></div>
+  <div class="boss-hp-wrap hidden" id="bossHpWrap">
+    <div class="boss-name display-font" id="bossName">Boss</div>
+    <div class="boss-hp-track"><div class="boss-hp-fill" id="bossHpFill"></div></div>
+  </div>
+  <div class="touch-hint" id="touchHint">TAP / SWIPE UP = JUMP &nbsp;•&nbsp; SWIPE DOWN = SLIDE</div>
+  <div id="leftTouchZone"></div>
+  <div id="rightTouchZone"></div>
+  <div class="stage-banner hidden" id="stageBanner"></div>
+
+  <!-- Pause overlay -->
+  <div class="modal-overlay hidden" id="pauseOverlay">
+    <div class="modal-card">
+      <div class="panel-title display-font" data-i18n="pause">Paused</div>
+      <button class="btn btn-primary display-font" id="resumeBtn" data-i18n="resume">▶ Resume</button>
+      <button class="btn btn-secondary display-font" id="restartFromPauseBtn" data-i18n="restart">↻ Restart</button>
+      <button class="btn btn-ghost display-font" id="menuFromPauseBtn" data-i18n="mainMenu">☰ Main Menu</button>
+    </div>
+  </div>
+
+  <!-- Revive / continue-with-coins offer -->
+  <div class="modal-overlay hidden" id="reviveOverlay">
+    <div class="modal-card">
+      <div class="panel-title display-font" data-i18n="reviveOffer">Revive for</div>
+      <div class="revive-cost display-font" id="reviveCostLabel">120 🪙</div>
+      <button class="btn btn-green display-font" id="acceptReviveBtn" data-i18n="continueRun">▶ CONTINUE</button>
+      <button class="btn btn-ghost display-font" id="declineReviveBtn" data-i18n="gameOver">END RUN</button>
+    </div>
+  </div>
+
+  <!-- ============ MAIN MENU ============ -->
+  <div class="screen hidden" id="menuScreen">
+    <div class="icon-row">
+      <button class="icon-btn" id="settingsBtn">⚙️</button>
+      <div class="currency-cluster">
+        <div class="currency-pill"><span class="coin-dot"></span><span id="menuCoins">0</span></div>
+        <div class="currency-pill"><span class="gem-dot"></span><span id="menuGems">0</span></div>
+        <div class="currency-pill" id="energyPill">⚡<span id="menuEnergy">5</span>/5</div>
+      </div>
+      <button class="icon-btn" id="profileBtn">👤</button>
+    </div>
+    <div class="screen-scroll">
+      <div class="logo-title display-font">SKY DASH<br><span class="legends-tag">LEGENDS</span></div>
+      <canvas class="menu-character-preview" id="menuCharCanvas" width="120" height="120"></canvas>
+      <div class="menu-hero-name display-font" id="menuHeroName">Blaze</div>
+      <div class="menu-btn-row">
+        <button class="btn btn-primary display-font" id="playBtn" data-i18n="play">▶ PLAY</button>
+        <div class="menu-btn-grid">
+          <button class="btn btn-secondary display-font btn-small-grid" id="shopBtn" data-i18n="shop">🛒 SHOP</button>
+          <button class="btn btn-purple display-font btn-small-grid" id="missionsBtn" data-i18n="missions">🎯 MISSIONS</button>
+          <button class="btn btn-green display-font btn-small-grid" id="leaderboardBtn" data-i18n="leaderboard">🏆 RANKS</button>
+          <button class="btn btn-gold display-font btn-small-grid" id="spinBtn" data-i18n="spin">🎡 SPIN</button>
+        </div>
+        <button class="btn btn-chest display-font" id="chestBtn">📦 <span id="chestCount">0</span> CHESTS</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ MODE SELECT ============ -->
+  <div class="screen hidden" id="modeScreen">
+    <div class="icon-row"><button class="icon-btn" id="modeBackBtn">←</button><div></div><div></div></div>
+    <div class="screen-scroll">
+      <div class="panel-title display-font">Choose Mode</div>
+      <div class="scroll-list" id="modeList"></div>
+    </div>
+  </div>
+
+  <!-- ============ WORLD SELECT ============ -->
+  <div class="screen hidden" id="worldScreen">
+    <div class="icon-row"><button class="icon-btn" id="worldBackBtn">←</button><div></div><div></div></div>
+    <div class="screen-scroll">
+      <div class="panel-title display-font">Choose World</div>
+      <div class="scroll-list" id="worldList"></div>
+    </div>
+  </div>
+
+  <!-- ============ STORY MAP ============ -->
+  <div class="screen hidden" id="storyScreen">
+    <div class="icon-row"><button class="icon-btn" id="storyBackBtn">←</button><div></div><div></div></div>
+    <div class="screen-scroll">
+      <div class="panel-title display-font" data-i18n="story">Story Mode</div>
+      <div class="scroll-list" id="storyList"></div>
+    </div>
+  </div>
+
+  <!-- ============ SHOP ============ -->
+  <div class="screen hidden" id="shopScreen">
+    <div class="icon-row">
+      <button class="icon-btn" id="shopBackBtn">←</button>
+      <div class="currency-cluster">
+        <div class="currency-pill"><span class="coin-dot"></span><span id="shopCoins">0</span></div>
+        <div class="currency-pill"><span class="gem-dot"></span><span id="shopGems">0</span></div>
+      </div>
+      <div></div>
+    </div>
+    <div class="screen-scroll">
+      <div class="panel-title display-font" data-i18n="shop">Shop</div>
+      <div class="tab-row">
+        <button class="tab-btn active" data-tab="heroes">Heroes</button>
+        <button class="tab-btn" data-tab="skins">Skins</button>
+        <button class="tab-btn" data-tab="upgrades" data-i18n="skillTree">Skill Tree</button>
+        <button class="tab-btn" data-tab="pets" data-i18n="pets">Pets</button>
+      </div>
+      <div class="scroll-list" id="shopList"></div>
+    </div>
+  </div>
+
+  <!-- ============ MISSIONS / WEEKLY / ACHIEVEMENTS ============ -->
+  <div class="screen hidden" id="missionsScreen">
+    <div class="icon-row">
+      <button class="icon-btn" id="missionsBackBtn">←</button>
+      <div class="currency-cluster">
+        <div class="currency-pill"><span class="coin-dot"></span><span id="missionsCoins">0</span></div>
+        <div class="currency-pill"><span class="gem-dot"></span><span id="missionsGems">0</span></div>
+      </div>
+      <div></div>
+    </div>
+    <div class="screen-scroll">
+      <div class="panel-title display-font" data-i18n="missions">Missions</div>
+      <div class="tab-row">
+        <button class="tab-btn active" data-mtab="daily">Daily</button>
+        <button class="tab-btn" data-mtab="weekly">Weekly</button>
+        <button class="tab-btn" data-mtab="achievements">Achievements</button>
+        <button class="tab-btn" data-mtab="battlepass" data-i18n="battlePass">Pass</button>
+      </div>
+      <div class="scroll-list" id="missionsList"></div>
+    </div>
+  </div>
+
+  <!-- ============ LEADERBOARD ============ -->
+  <div class="screen hidden" id="leaderboardScreen">
+    <div class="icon-row"><button class="icon-btn" id="leaderboardBackBtn">←</button><div></div><div></div></div>
+    <div class="screen-scroll">
+      <div class="panel-title display-font" data-i18n="leaderboard">Leaderboard</div>
+      <div class="lb-note">Local device leaderboard — online ranks require a backend server (not included in this offline build).</div>
+      <div class="tab-row">
+        <button class="tab-btn active" data-lbtab="endless">Endless</button>
+        <button class="tab-btn" data-lbtab="timeTrial">Time Trial</button>
+        <button class="tab-btn" data-lbtab="survival">Survival</button>
+      </div>
+      <div class="scroll-list" id="leaderboardList"></div>
+    </div>
+  </div>
+
+  <!-- ============ SETTINGS ============ -->
+  <div class="screen hidden" id="settingsScreen">
+    <div class="icon-row"><button class="icon-btn" id="settingsBackBtn">←</button><div></div><div></div></div>
+    <div class="screen-scroll">
+      <div class="panel-title display-font" data-i18n="settings">Settings</div>
+      <div class="panel-card">
+        <div class="settings-row"><span class="settings-label">Sound Effects</span><div class="switch on" id="sfxSwitch"><div class="knob"></div></div></div>
+        <div class="settings-row"><span class="settings-label">SFX Volume</span><input type="range" min="0" max="100" id="sfxSlider" class="slider"></div>
+        <div class="settings-row"><span class="settings-label">Background Music</span><div class="switch on" id="musicSwitch"><div class="knob"></div></div></div>
+        <div class="settings-row"><span class="settings-label">Music Volume</span><input type="range" min="0" max="100" id="musicSlider" class="slider"></div>
+        <div class="settings-row"><span class="settings-label">Screen Shake</span><div class="switch on" id="shakeSwitch"><div class="knob"></div></div></div>
+        <div class="settings-row"><span class="settings-label">Graphics Quality</span>
+          <select id="qualitySelect" class="select-input"><option value="high">High</option><option value="low">Low (Battery Saver)</option></select>
+        </div>
+        <div class="settings-row"><span class="settings-label">Language</span>
+          <select id="langSelect" class="select-input"><option value="en">English</option><option value="ur">Roman Urdu</option></select>
+        </div>
+      </div>
+      <button class="btn btn-ghost display-font" id="resetProgressBtn" style="margin-top:10px;">Reset Progress</button>
+      <div class="controller-hint" id="controllerHint">🎮 Controller: not detected</div>
+    </div>
+  </div>
+
+  <!-- ============ PROFILE / STATS ============ -->
+  <div class="screen hidden" id="profileScreen">
+    <div class="icon-row"><button class="icon-btn" id="profileBackBtn">←</button><div></div><div></div></div>
+    <div class="screen-scroll">
+      <div class="panel-title display-font" data-i18n="profile">Profile</div>
+      <canvas class="menu-character-preview" id="profileCharCanvas" width="110" height="110"></canvas>
+      <div class="profile-level-row">
+        <div class="display-font profile-level" id="profileLevel">Lv. 1</div>
+        <div class="bar-track"><div class="bar-fill" id="profileXpFill"></div></div>
+      </div>
+      <div class="stats-grid" id="statsGrid"></div>
+    </div>
+  </div>
+
+  <!-- ============ GAME OVER / VICTORY ============ -->
+  <div class="screen hidden" id="gameOverScreen">
+    <div class="screen-scroll gameover-card">
+      <div class="new-best-badge hidden" id="newBestBadge" data-i18n="newBest">★ NEW HIGH SCORE ★</div>
+      <div class="panel-title display-font" id="goTitle">Game Over</div>
+      <div class="go-stats">
+        <div class="go-stat"><div class="v" id="goScore">0</div><div class="l">SCORE</div></div>
+        <div class="go-stat"><div class="v" id="goCoins">0</div><div class="l">COINS</div></div>
+        <div class="go-stat"><div class="v" id="goGems">0</div><div class="l">GEMS</div></div>
+      </div>
+      <button class="btn btn-primary display-font" id="retryBtn" data-i18n="retry">↻ RETRY</button>
+      <button class="btn btn-ghost display-font" id="goMenuBtn" data-i18n="mainMenu">☰ MAIN MENU</button>
+    </div>
+  </div>
+
+  <!-- ============ DAILY REWARD MODAL ============ -->
+  <div class="modal-overlay hidden" id="dailyOverlay">
+    <div class="modal-card" style="width:310px;">
+      <div class="panel-title display-font" data-i18n="dailyReward">Daily Reward!</div>
+      <div class="daily-grid" id="dailyGrid"></div>
+      <button class="btn btn-primary display-font" id="claimDailyBtn">CLAIM 🎁</button>
+    </div>
+  </div>
+
+  <!-- ============ SPIN WHEEL MODAL ============ -->
+  <div class="modal-overlay hidden" id="spinOverlay">
+    <div class="modal-card" style="width:300px;">
+      <div class="panel-title display-font" data-i18n="spin">Lucky Spin</div>
+      <canvas id="spinCanvas" width="240" height="240"></canvas>
+      <button class="btn btn-primary display-font" id="doSpinBtn">SPIN</button>
+      <button class="btn btn-ghost display-font" id="closeSpinBtn">Close</button>
+    </div>
+  </div>
+
+  <!-- ============ CHEST OPEN MODAL ============ -->
+  <div class="modal-overlay hidden" id="chestOverlay">
+    <div class="modal-card" style="width:280px;">
+      <div class="panel-title display-font" data-i18n="chests">Treasure Chest</div>
+      <div class="chest-icon" id="chestIcon">📦</div>
+      <div class="chest-reward hidden" id="chestReward"></div>
+      <button class="btn btn-primary display-font" id="openChestBtn">OPEN</button>
+      <button class="btn btn-ghost display-font hidden" id="closeChestBtn">Close</button>
+    </div>
+  </div>
+
+</div>
+<script src="js/data.js"></script>
+<script src="js/save.js"></script>
+<script src="js/i18n.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/entities.js"></script>
+<script src="js/world.js"></script>
+<script src="js/game.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
