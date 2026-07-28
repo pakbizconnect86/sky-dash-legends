@@ -43,6 +43,39 @@ const WORLDS = [
     enemyNames: ['Frost Sprite', 'Yeti Cub', 'Ice Wraith'],
     musicScale: [349.2, 415.3, 493.9, 587.3, 493.9, 415.3],
     boss: { name: 'The Frozen Colossus', color: '#7fc4e8', hp: 180 }
+  },
+  {
+    id: 'volcano', name: 'Cinderpeak Volcano', unlockDistance: 11000,
+    sky: { day: ['#ff9a5c', '#3a1a1a'], night: ['#2b0d0d', '#4a1a12'] },
+    ground: '#3a2620', groundTop: '#6b3a2a',
+    fog: 'rgba(255,120,60,0.35)',
+    weatherPool: ['clear', 'ashfall', 'thunder'],
+    obstacleSkin: { spike: '#8a2f1e', ground: '#4a2a1c', flyer: '#ff7a3d' },
+    enemyNames: ['Ember Imp', 'Magma Bat', 'Cinder Golem'],
+    musicScale: [220.0, 261.6, 311.1, 349.2, 311.1, 261.6],
+    boss: { name: 'The Magma Behemoth', color: '#ff5a2b', hp: 220 }
+  },
+  {
+    id: 'cyberCity', name: 'Neon District', unlockDistance: 15000,
+    sky: { day: ['#3a2b6b', '#7a5cc9'], night: ['#0a0a1a', '#1a1040'] },
+    ground: '#1c1c2e', groundTop: '#2e2e4a',
+    fog: 'rgba(120,90,220,0.3)',
+    weatherPool: ['clear', 'fog', 'rain'],
+    obstacleSkin: { spike: '#ff2fd6', ground: '#2fd6ff', flyer: '#c9ff2f' },
+    enemyNames: ['Rogue Drone', 'Data Wraith', 'Sentry Bot'],
+    musicScale: [277.2, 329.6, 392.0, 466.2, 392.0, 329.6],
+    boss: { name: 'The Rogue Mainframe', color: '#ff2fd6', hp: 260 }
+  },
+  {
+    id: 'space', name: 'Orbital Frontier', unlockDistance: 19000,
+    sky: { day: ['#0a0e2a', '#1a1a4a'], night: ['#000008', '#0a0a20'] },
+    ground: '#2a2a3e', groundTop: '#4a4a66',
+    fog: 'rgba(140,160,255,0.25)',
+    weatherPool: ['clear', 'meteor'],
+    obstacleSkin: { spike: '#8a8aff', ground: '#5a5a8a', flyer: '#ffcf5a' },
+    enemyNames: ['Void Drifter', 'Ion Wisp', 'Star Reaper'],
+    musicScale: [196.0, 233.1, 277.2, 329.6, 277.2, 233.1],
+    boss: { name: 'The Void Sentinel', color: '#8a5aff', hp: 300 }
   }
 ];
 
@@ -61,8 +94,62 @@ const CHARACTERS = [
   { id:'frost', name:'Frost', cost:800, body:'#a6e8ff', accent:'#4fa9cf',
     ability:'freeze_plus', abilityDesc:'Freeze Time power-ups last 50% longer.' },
   { id:'nova',  name:'Nova',  cost:1200,body:'#c78aff', accent:'#7a3ec9',
-    ability:'gem_plus', abilityDesc:'Earns 20% more gems from every run.' }
+    ability:'gem_plus', abilityDesc:'Earns 20% more gems from every run.' },
+  { id:'ember', name:'Ember', cost:1500,body:'#ff3d3d', accent:'#8a1a1a',
+    ability:'revive_discount', abilityDesc:'Coin-revive costs 30% less.' },
+  { id:'gale',  name:'Gale',  cost:1800,body:'#c9ffe0', accent:'#3ec98f',
+    ability:'combo_plus', abilityDesc:'Combo meter builds 25% faster.' },
+  { id:'onyx',  name:'Onyx',  cost:2200,body:'#4a4a5e', accent:'#1a1a26',
+    ability:'invuln_plus', abilityDesc:'Post-hit invulnerability lasts longer.' },
+  { id:'lumen', name:'Lumen', cost:2600,body:'#fff3b0', accent:'#d9a000',
+    ability:'coin_plus', abilityDesc:'Earns 20% more coins from every run.' },
+  { id:'rook',  name:'Rook',  cost:3000,body:'#7a8aa0', accent:'#3a4a5e',
+    ability:'extra_heart', abilityDesc:'Starts every run with +1 heart.' },
+  { id:'vex',   name:'Vex',   cost:3600,body:'#ff5ad6', accent:'#8a1a6e',
+    ability:'powerup_plus', abilityDesc:'Power-up drop chance increased.' }
 ];
+
+/* ---------------- COMPANIONS / PETS ----------------
+   Purely passive helpers that orbit the hero. Bought with gems,
+   equip one at a time from the Shop → Pets tab.                   */
+const PET_DEFS = [
+  { id:'sparky',  name:'Sparky',  cost:0,   color:'#ffd23f', desc:'A loyal starter spark. Small coin-collect radius.' , radius:70 },
+  { id:'glimmer', name:'Glimmer', cost:400, color:'#6be3ff', desc:'Glimmer widens your passive collection radius.',      radius:110 },
+  { id:'ash',     name:'Ash',     cost:900, color:'#ff6b4d', desc:'Ash burns nearby obstacles' + '\u2019' + ' fear — bigger radius still.', radius:150 }
+];
+
+/* ---------------- BATTLE PASS ----------------
+   A simple seasonal-style reward track driven by account level.
+   Free tier rewards everyone; premium tier (one-time gem unlock)
+   doubles the payout at every step.                               */
+function buildBattlePassTiers(){
+  const tiers = [];
+  for (let i=1;i<=20;i++){
+    tiers.push({
+      tier:i, levelRequired:i,
+      free: { coins: 40 + i*10 },
+      premium: { coins: 80 + i*20, gems: 5 + Math.floor(i/2) }
+    });
+  }
+  return tiers;
+}
+const BATTLE_PASS_TIERS = buildBattlePassTiers();
+const BATTLE_PASS_PREMIUM_COST = 250; // gems, one-time unlock for the season
+
+/* ---------------- SKILL TREE (hero upgrade tracks) ----------------
+   Four branches per hero, 5 tiers each, paid in coins. This is the
+   "skill tree" — deliberately kept flat/simple (breadth over deep
+   branching) so it stays legible on a small mobile screen.        */
+const UPGRADE_TRACKS = [
+  { key:'speed',  label:'Speed',        desc:'Higher base run speed.' },
+  { key:'magnet', label:'Magnet Radius',desc:'Wider passive pickup radius.' },
+  { key:'coin',   label:'Coin Value',   desc:'More coins per pickup.' },
+  { key:'luck',   label:'Luck',         desc:'Better power-up drop odds.' }
+];
+
+/* ---------------- MINI-BOSS / SECRET CHEST TUNING ---------------- */
+const MINI_BOSS_DISTANCE_INTERVAL = 1400; // meters between mini-boss encounters
+const SECRET_CHEST_CHANCE = 0.04;          // per obstacle-spawn tick, in Endless/Survival
 
 /* ---------------- POWER-UPS ---------------- */
 const POWERUP_DEFS = {

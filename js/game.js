@@ -13,13 +13,13 @@ const SLIDE_DURATION = 0.5;
 const BASE_HEARTS = 3;
 
 let Game = {
-  state: 'idle',        // idle | playing | paused | boss | dead | victory
+  state: 'idle',        // idle | countdown | playing | paused | bossIntro | boss | reviveOffer | dead | victory
   mode: null,            // 'endless' | 'timeTrial' | 'survival' | 'story'
   worldId: 'forest',
   worldRuntime: null,
   stage: null,           // active STORY_STAGES entry, if mode === 'story'
 
-  player: null,
+  player: null, pet: null,
   obstacles: [], collectibles: [], projectiles: [],
   particles: null,
   boss: null,
@@ -28,11 +28,20 @@ let Game = {
   coinsThisRun: 0, gemsThisRun: 0, powerupsUsedThisRun: 0,
   hitThisRun: false, distanceSinceHit: 0,
   timeLeft: 60,          // used by Time Trial
-  spawnTimer: 0, difficultyTimer: 0,
+  spawnTimer: 0, difficultyTimer: 0, dustTimer: 0,
   activePowerups: {},
   screenShake: 0, camZoom: 1, camZoomTarget: 1,
-  bgOffset: 0
+  bgOffset: 0,
+
+  countdownT: 0,
+  combo: 0, comboTimer: 0, bestComboThisRun: 0,
+  reviveUsed: false,
+  nextMiniBossDistance: 0
 };
+
+const CAM_ZOOM_MIN = 0.85, CAM_ZOOM_MAX = 1.35;
+const COMBO_DECAY_TIME = 2.2;      // seconds of no near-miss/pickup before combo resets
+const REVIVE_BASE_COST = 120;      // coins
 
 /* ---------------- HERO ABILITY HELPERS ---------------- */
 function heroHasAbility(id){ return Game.player && Game.player.charDef.ability === id; }
@@ -45,6 +54,16 @@ function powerupDurationMult(kind){
   return 1;
 }
 function magnetRadius(){ return heroHasAbility('magnet_plus') ? 260 : 170; }
+function reviveCost(){ return Math.round(REVIVE_BASE_COST * (heroHasAbility('revive_discount') ? 0.7 : 1)); }
+function comboGainMult(){ return heroHasAbility('combo_plus') ? 1.25 : 1; }
+function hitInvulnDuration(){ return heroHasAbility('invuln_plus') ? 1.3 : 0.9; }
+function coinAbilityBonus(){ return heroHasAbility('coin_plus') ? 0.2 : 0; }
+function gemAbilityBonus(){ return heroHasAbility('gem_plus') ? 0.2 : 0; }
+function powerupLuckBonus(){
+  let bonus = heroHasAbility('powerup_plus') ? 0.06 : 0;
+  if (Game.player) bonus += (Game.player.upLuck||0) * 0.02;
+  return bonus;
+}
 
 /* ---------------- RUN SETUP ---------------- */
 function startRun(mode, worldId, stage){
@@ -60,8 +79,10 @@ function startRun(mode, worldId, stage){
   const upSpeed = upgradeTier(heroId,'speed');
   const upMagnet = upgradeTier(heroId,'magnet');
   const upCoin = upgradeTier(heroId,'coin');
+  const upLuck = upgradeTier(heroId,'luck');
 
-  const hearts = mode==='survival' ? 1 : BASE_HEARTS;
+  let hearts = mode==='survival' ? 1 : BASE_HEARTS;
+  if (heroHasAbility_static(charDef,'extra_heart') && mode!=='survival') hearts += 1;
   Game.player = {
     x: 110, y: VIEW.GROUND_Y, vy: 0,
     grounded: true, jumps: 0,
@@ -69,8 +90,9 @@ function startRun(mode, worldId, stage){
     legPhase: 0, charDef,
     hitInvuln: 0,
     hearts, maxHearts: hearts,
-    upSpeed, upMagnet, upCoin
+    upSpeed, upMagnet, upCoin, upLuck
   };
+  Game.pet = SAVE.selectedPet ? Object.assign({ t:0 }, PET_DEFS.find(p=>p.id===SAVE.selectedPet)) : null;
 
   Game.obstacles = []; Game.collectibles = []; Game.projectiles = [];
   Game.boss = null;
@@ -79,20 +101,28 @@ function startRun(mode, worldId, stage){
   Game.coinsThisRun = 0; Game.gemsThisRun = 0; Game.powerupsUsedThisRun = 0;
   Game.hitThisRun = false; Game.distanceSinceHit = 0;
   Game.timeLeft = 60;
-  Game.spawnTimer = 0.8; Game.difficultyTimer = 0;
+  Game.spawnTimer = 0.8; Game.difficultyTimer = 0; Game.dustTimer = 0;
   Game.activePowerups = { shield:0, magnet:0, doubleCoins:0, speedBoost:0, freezeTime:0, invincible:0, rocket:0 };
   Game.screenShake = 0; Game.camZoom = 1; Game.camZoomTarget = 1;
   Game.bgOffset = 0;
+  Game.combo = 0; Game.comboTimer = 0; Game.bestComboThisRun = 0;
+  Game.reviveUsed = false;
+  Game.nextMiniBossDistance = MINI_BOSS_DISTANCE_INTERVAL;
 
   if (heroHasAbility('ember_start')) Game.activePowerups.speedBoost = 3;
 
-  Game.state = (stage && stage.type==='boss') ? 'bossIntro' : 'playing';
-  if (Game.state === 'bossIntro'){
-    Game.bossIntroT = 2.2;
-  }
+  // Every run starts with a 3-2-1-GO countdown; the player is fully
+  // positioned and idle-animating on the ground while it counts down,
+  // so there's never a frame where they spawn mid-air or inside terrain.
+  Game.state = 'countdown';
+  Game.countdownT = 3.2;
+  Game.pendingBossIntro = !!(stage && stage.type==='boss');
 
   AudioSys.startMusic(worldDef.musicScale, false);
 }
+
+// Static ability check usable before Game.player is fully wired (startRun)
+function heroHasAbility_static(charDef, id){ return charDef && charDef.ability === id; }
 
 /* ---------------- SPAWNING ---------------- */
 function spawnPattern(){
@@ -109,6 +139,14 @@ function spawnPattern(){
     Game.obstacles.push({ type:'mover', x, y:VIEW.GROUND_Y-40, w:30, h:60, t:0, baseY:VIEW.GROUND_Y-40 });
   }
 
+  // Secret chest: rare, only in the "endless-style" spawn loop, and
+  // never stacked with a power-up roll on the same tick.
+  if (Math.random() < SECRET_CHEST_CHANCE){
+    Game.collectibles.push({ type:'secret', x:x+160, y:VIEW.GROUND_Y-110, r:13 });
+    return;
+  }
+
+  const powerChance = 0.14 + powerupLuckBonus(); // base 14%, boosted by Luck upgrade / Vex ability
   const cRoll = Math.random();
   if (cRoll < 0.5){
     const n = 3 + Math.floor(Math.random()*4);
@@ -117,7 +155,7 @@ function spawnPattern(){
     }
   } else if (cRoll < 0.66){
     Game.collectibles.push({ type:'gem', x:x+140, y:VIEW.GROUND_Y-100, r:10 });
-  } else if (cRoll < 0.8){
+  } else if (cRoll < 0.66+powerChance){
     const kind = POWERUP_KEYS[Math.floor(Math.random()*POWERUP_KEYS.length)];
     Game.collectibles.push({ type:'power', kind, x:x+140, y:VIEW.GROUND_Y-90, r:13 });
   }
@@ -153,7 +191,7 @@ function playerHitbox(){
 }
 function obstacleHitbox(o){
   if (o.type==='spike') return { x:o.x-o.w/2, y:o.y-o.h, w:o.w, h:o.h };
-  if (o.type==='ground') return { x:o.x-o.w/2, y:o.y-o.h, w:o.w, h:o.h };
+  if (o.type==='ground') return { x:o.x-o.w/2, y:o.y-o.h/2, w:o.w, h:o.h }; // circle sprite is centered on o.y
   return { x:o.x-o.w/2, y:o.y-o.h/2, w:o.w, h:o.h };
 }
 function rectsOverlap(a,b){
@@ -172,17 +210,76 @@ function damagePlayer(amount){
     return;
   }
   p.hearts -= amount;
-  p.hitInvuln = 0.9;
+  p.hitInvuln = hitInvulnDuration();
   Game.hitThisRun = true;
   Game.distanceSinceHit = 0;
   Game.screenShake = 8;
+  Game.combo = 0; Game.comboTimer = 0; // a hit always breaks the combo streak
   Game.particles.explosion(p.x, p.y-30, '#ff5470');
   AudioSys.hit();
-  if (p.hearts <= 0){ endRun(false); }
+  if (p.hearts <= 0){ offerReviveOrEnd(); }
 }
+
+/* ---------------- COIN REVIVE / CONTINUE ---------------- */
+function offerReviveOrEnd(){
+  const cost = reviveCost();
+  if (!Game.reviveUsed && SAVE.coins >= cost && (Game.state==='playing' || Game.state==='boss')){
+    Game.reviveWasPlaying = Game.state;
+    Game.state = 'reviveOffer';
+    AudioSys.stopMusic();
+    onReviveOffered && onReviveOffered(cost); // ui.js shows the modal
+  } else {
+    triggerDeathSequence();
+    endRun(false);
+  }
+}
+function acceptRevive(){
+  const cost = reviveCost();
+  if (SAVE.coins < cost) return false;
+  SAVE.coins -= cost; persist();
+  Game.reviveUsed = true;
+  Game.player.hearts = 1;
+  Game.player.hitInvuln = 2.5;
+  Game.state = Game.reviveWasPlaying || 'playing';
+  Game.particles.explosion(Game.player.x, Game.player.y-30, '#4dd4a8');
+  AudioSys.revive();
+  AudioSys.startMusic(WORLDS.find(w=>w.id===Game.worldId).musicScale, Game.state==='boss');
+  return true;
+}
+function declineRevive(){
+  triggerDeathSequence();
+  endRun(false);
+}
+function triggerDeathSequence(){
+  const p = Game.player;
+  if (!p) return;
+  Game.camZoomTarget = 1.25;
+  Game.screenShake = 14;
+  Game.particles.explosion(p.x, p.y-30, '#ff5470');
+  Game.particles.smoke(p.x, p.y-20);
+}
+let onReviveOffered = null; // ui.js overrides this to show the revive modal
 
 /* ---------------- MAIN UPDATE ---------------- */
 function updateGame(dt){
+  if (Game.state === 'countdown'){
+    Game.countdownT -= dt;
+    // idle-animate the hero in place while the countdown plays so the
+    // player is never shown mid-air or clipped into the ground
+    if (Game.player){ Game.player.legPhase += dt*2; }
+    if (Game.countdownT <= 0){
+      if (Game.pendingBossIntro){
+        Game.state = 'bossIntro';
+        Game.bossIntroT = 2.2;
+      } else {
+        Game.state = 'playing';
+      }
+    }
+    return;
+  }
+
+  if (Game.state === 'reviveOffer'){ return; } // frozen — waiting on the revive modal
+
   if (Game.state === 'bossIntro'){
     Game.bossIntroT -= dt;
     Game.camZoomTarget = 1.15;
@@ -190,7 +287,9 @@ function updateGame(dt){
     if (Game.bossIntroT <= 0){
       Game.state = 'boss';
       Game.camZoomTarget = 1;
-      spawnBoss();
+      const isMini = !!Game.pendingMiniBoss;
+      Game.pendingMiniBoss = false;
+      spawnBoss(isMini);
       AudioSys.bossRoar();
       AudioSys.startMusic(WORLDS.find(w=>w.id===Game.worldId).musicScale, true);
     }
@@ -200,9 +299,18 @@ function updateGame(dt){
   const p = Game.player;
 
   // player physics
+  const wasAirborne = !p.grounded;
+  const fallSpeed = p.vy;
   p.vy += GRAVITY*dt;
   p.y += p.vy*dt;
-  if (p.y >= VIEW.GROUND_Y){ p.y = VIEW.GROUND_Y; p.vy = 0; p.grounded = true; p.jumps = 0; }
+  if (p.y >= VIEW.GROUND_Y){
+    p.y = VIEW.GROUND_Y; p.vy = 0; p.grounded = true; p.jumps = 0;
+    if (wasAirborne && fallSpeed > 550){
+      // landing impact — a puff of ground dust under the feet
+      Game.particles.dust(p.x, VIEW.GROUND_Y, groundDustColor());
+      Game.particles.dust(p.x-8, VIEW.GROUND_Y, groundDustColor());
+    }
+  }
   else { p.grounded = false; }
 
   if (Game.activePowerups.rocket > 0){
@@ -214,6 +322,15 @@ function updateGame(dt){
   p.legPhase += dt * (p.grounded ? 14 : 6);
   if (p.hitInvuln > 0) p.hitInvuln -= dt;
 
+  // footstep dust while grounded and running
+  if (p.grounded && !p.sliding){
+    Game.dustTimer -= dt;
+    if (Game.dustTimer <= 0){
+      Game.dustTimer = 0.16;
+      Game.particles.dust(p.x-6, VIEW.GROUND_Y, groundDustColor());
+    }
+  }
+
   // powerup timers
   Object.keys(Game.activePowerups).forEach(k=>{
     if (Game.activePowerups[k] > 0){ Game.activePowerups[k] -= dt; if (Game.activePowerups[k] < 0) Game.activePowerups[k]=0; }
@@ -224,7 +341,15 @@ function updateGame(dt){
 
   Game.distance += curSpeed*dt;
   Game.distanceSinceHit += curSpeed*dt;
-  const scoreMult = Game.activePowerups.speedBoost>0 ? 1.5 : 1;
+
+  // combo decays back to 0 if nothing near-missed or was collected for a
+  // couple of seconds; while active it multiplies score gain
+  if (Game.combo > 0){
+    Game.comboTimer -= dt;
+    if (Game.comboTimer <= 0){ Game.combo = 0; }
+  }
+  const comboMult = Game.combo >= 20 ? 3 : Game.combo >= 10 ? 2 : Game.combo >= 5 ? 1.5 : 1;
+  const scoreMult = (Game.activePowerups.speedBoost>0 ? 1.5 : 1) * comboMult;
   Game.score += dt * (10 + Game.speed*0.02) * scoreMult;
 
   if (Game.mode==='timeTrial'){
@@ -235,9 +360,23 @@ function updateGame(dt){
   Game.difficultyTimer += dt;
   if (Game.difficultyTimer > 4){ Game.difficultyTimer = 0; Game.speed = Math.min(Game.speed+18, 800); }
 
-  // camera zoom relax
+  // camera zoom relax, clamped so stacked effects (powerups + shake +
+  // boss intro) can never push the view to an unreadable extreme
+  Game.camZoomTarget = Math.max(CAM_ZOOM_MIN, Math.min(CAM_ZOOM_MAX, Game.camZoomTarget));
   Game.camZoom += (Game.camZoomTarget-Game.camZoom)*dt*4;
+  Game.camZoom = Math.max(CAM_ZOOM_MIN, Math.min(CAM_ZOOM_MAX, Game.camZoom));
   if (Game.screenShake > 0) Game.screenShake = Math.max(0, Game.screenShake - dt*22);
+
+  // mini-boss check — only in the endless-style spawn loop (not during
+  // Story mode, which has its own scripted boss stages)
+  if (Game.state==='playing' && Game.mode!=='story' && Game.distance >= Game.nextMiniBossDistance){
+    Game.state = 'bossIntro';
+    Game.bossIntroT = 1.6;
+    Game.pendingBossIntro = false;
+    Game.pendingMiniBoss = true;
+    Game.nextMiniBossDistance += MINI_BOSS_DISTANCE_INTERVAL;
+    return;
+  }
 
   if (Game.state === 'boss'){ updateBoss(dt); }
   else { updateEndlessSpawn(dt); }
@@ -245,6 +384,7 @@ function updateGame(dt){
   updateObstacles(dt, curSpeed);
   updateCollectibles(dt, curSpeed);
   updateProjectiles(dt);
+  updatePet(dt);
   Game.particles.update(dt);
 
   // ambient world particles (fire embers in volcano-esque, dust in desert) — light touch, cheap
@@ -255,6 +395,35 @@ function updateGame(dt){
   // story distance-stage completion check
   if (Game.mode==='story' && Game.stage.type==='distance' && Game.distance >= Game.stage.target){
     finishStoryDistanceStage();
+  }
+}
+
+function groundDustColor(){
+  const w = WORLDS.find(w=>w.id===Game.worldId);
+  return w ? w.ground : 'rgba(210,200,180,.55)';
+}
+
+function gainCombo(amount){
+  Game.combo += amount * comboGainMult();
+  Game.comboTimer = COMBO_DECAY_TIME;
+  Game.bestComboThisRun = Math.max(Game.bestComboThisRun, Math.floor(Game.combo));
+  SAVE.bestCombo = Math.max(SAVE.bestCombo||0, Game.bestComboThisRun);
+}
+
+function updatePet(dt){
+  const pet = Game.pet, p = Game.player;
+  if (!pet || !p) return;
+  pet.t += dt;
+  pet.x = p.x - 34; pet.y = p.y - 70;
+  // passive auto-collect: any coin/gem within the pet's radius drifts in
+  for (let i=Game.collectibles.length-1;i>=0;i--){
+    const c = Game.collectibles[i];
+    if (c.type!=='coin' && c.type!=='gem') continue;
+    const d = Math.hypot(pet.x-c.x, pet.y-c.y);
+    if (d < pet.radius){
+      c.x += (pet.x-c.x)*Math.min(1,dt*5);
+      c.y += (pet.y-c.y)*Math.min(1,dt*5);
+    }
   }
 }
 
@@ -271,6 +440,7 @@ function updateObstacles(dt, curSpeed){
   const worldSkin = WORLDS.find(w=>w.id===Game.worldId).obstacleSkin;
   for (let i=Game.obstacles.length-1;i>=0;i--){
     const o = Game.obstacles[i];
+    const wasAhead = o.x >= Game.player.x;
     o.x -= curSpeed*dt;
     if (o.type==='ground'){ o.t+=dt; o.y = (VIEW.GROUND_Y-18) + Math.sin(o.t*4)*6; }
     if (o.type==='flyer'){ o.t+=dt; o.y = (VIEW.GROUND_Y-64) + Math.sin(o.t*2)*10; }
@@ -280,6 +450,14 @@ function updateObstacles(dt, curSpeed){
     if (rectsOverlap(pHitbox, obstacleHitbox(o))){
       damagePlayer(1);
       Game.obstacles.splice(i,1);
+      continue;
+    }
+    // near-miss: the obstacle just swept past the player's x position
+    // this frame without ever colliding — reward a small combo tick
+    if (wasAhead && o.x < Game.player.x - 10 && !o._passed){
+      o._passed = true;
+      gainCombo(1);
+      AudioSys.comboUp();
     }
   }
 }
@@ -310,20 +488,30 @@ function updateCollectibles(dt, curSpeed){
 
 function collectPickup(c){
   const mult = Game.activePowerups.doubleCoins>0 ? 2 : 1;
-  const coinBonus = 1 + (Game.player.upCoin*0.1);
+  const coinBonus = 1 + (Game.player.upCoin*0.1) + coinAbilityBonus();
+  const gemBonus = 1 + gemAbilityBonus();
   if (c.type==='coin'){
     const amt = Math.round(1*mult*coinBonus);
     SAVE.coins += amt; Game.coinsThisRun += amt; SAVE.totalCoinsCollected += amt;
     AudioSys.coin(); Game.particles.sparkle(c.x,c.y,'#ffd23f');
+    gainCombo(0.4);
   } else if (c.type==='gem'){
-    const amt = Math.round(1*mult);
+    const amt = Math.round(1*mult*gemBonus);
     SAVE.gems += amt; Game.gemsThisRun += amt; SAVE.totalGemsCollected += amt;
     AudioSys.gem(); Game.particles.sparkle(c.x,c.y,'#6be3ff');
+    gainCombo(0.4);
   } else if (c.type==='power'){
     activatePowerup(c.kind);
+  } else if (c.type==='secret'){
+    SAVE.chests++;
+    Game.particles.explosion(c.x, c.y, '#c78aff');
+    AudioSys.secretChest();
+    persist();
+    showBanner_i18n && showBanner_i18n('secretFound');
   }
   updateHudCallback && updateHudCallback();
 }
+let showBanner_i18n = null; // ui.js overrides this to flash a translated banner
 
 function activatePowerup(kind){
   if (kind === 'healthPack'){
@@ -341,15 +529,18 @@ function activatePowerup(kind){
 }
 
 /* ---------------- BOSS BATTLE ---------------- */
-function spawnBoss(){
+function spawnBoss(mini){
   const worldDef = WORLDS.find(w=>w.id===Game.worldId);
-  Game.obstacles = []; Game.collectibles = [];
+  Game.obstacles = []; Game.collectibles = []; Game.projectiles = [];
+  const hp = mini ? Math.round(worldDef.boss.hp*0.35) : worldDef.boss.hp;
   Game.boss = {
-    def: worldDef.boss, x: VIEW.W - 140, y: VIEW.GROUND_Y - 120, r: 60,
-    hp: worldDef.boss.hp, maxHp: worldDef.boss.hp,
-    t: 0, attackTimer: 1.5, hitFlash: 0, phase: 1
+    def: worldDef.boss, x: VIEW.W - 140, y: VIEW.GROUND_Y - 120, r: mini ? 40 : 60,
+    hp, maxHp: hp,
+    t: 0, attackTimer: mini ? 1.0 : 1.5, hitFlash: 0, phase: 1, mini: !!mini
   };
+  onBossEncounter && onBossEncounter(mini ? t('miniBoss') : Game.boss.def.name);
 }
+let onBossEncounter = null; // ui.js overrides this to flash a stage banner
 function updateBoss(dt){
   const b = Game.boss;
   if (!b) return;
@@ -359,7 +550,7 @@ function updateBoss(dt){
   // Boss HP drains over time (hero auto-attacks); drains faster once
   // the player proves skill by staying un-hit for a while.
   const skillMult = Game.distanceSinceHit > 400 ? 1.6 : 1;
-  const baseDrainRate = 7; // hp/sec — hero's automatic attack while dodging
+  const baseDrainRate = b.mini ? 11 : 7; // hp/sec — hero's automatic attack while dodging
   b.hp -= baseDrainRate * dt * skillMult;
   if (b.hp < b.maxHp*0.5 && b.phase===1){ b.phase=2; b.attackTimer = 0.6; }
 
@@ -370,9 +561,23 @@ function updateBoss(dt){
   }
 
   if (b.hp <= 0){
-    Game.boss = null;
-    winBossFight();
+    if (b.mini){ winMiniBoss(); }
+    else { Game.boss = null; winBossFight(); }
   }
+}
+function winMiniBoss(){
+  const b = Game.boss;
+  Game.particles.explosion(b.x, b.y, b.def.color);
+  AudioSys.reward();
+  const coinReward = 80, gemReward = 6;
+  SAVE.coins += coinReward; SAVE.gems += gemReward;
+  Game.coinsThisRun += coinReward; Game.gemsThisRun += gemReward;
+  Game.boss = null;
+  Game.state = 'playing';
+  Game.camZoomTarget = 1;
+  Game.spawnTimer = 1.0;
+  AudioSys.startMusic(WORLDS.find(w=>w.id===Game.worldId).musicScale, false);
+  updateHudCallback && updateHudCallback();
 }
 function fireBossAttack(b){
   const pattern = Math.random();
@@ -552,6 +757,14 @@ function renderGame(g){
       g.shadowBlur = 0;
       g.fillStyle='#233047'; g.font='bold 12px sans-serif'; g.textAlign='center'; g.textBaseline='middle';
       g.fillText(def.icon, 0, 1);
+    } else if (c.type==='secret'){
+      const pulse = 0.7+Math.sin(performance.now()/160)*0.3;
+      g.shadowColor = '#c78aff'; g.shadowBlur = 16*pulse;
+      g.fillStyle = '#c78aff';
+      roundRect(g,-c.r,-c.r*0.8,c.r*2,c.r*1.6,4); g.fill();
+      g.shadowBlur = 0;
+      g.fillStyle='#fff'; g.font='bold 13px sans-serif'; g.textAlign='center'; g.textBaseline='middle';
+      g.fillText('?', 0, 1);
     }
     g.restore();
   });
@@ -576,6 +789,18 @@ function renderGame(g){
   const p = Game.player;
   if (p){
     const showHero = p.hitInvuln<=0 || Math.floor(p.hitInvuln*20)%2===0;
+
+    // motion blur: a few faded silhouettes trailing behind the hero,
+    // only while moving fast (speed boost / rocket) to keep it cheap
+    if (Game.activePowerups.speedBoost>0 || Game.activePowerups.rocket>0){
+      for (let i=1;i<=3;i++){
+        g.save();
+        g.globalAlpha = 0.10 * (4-i);
+        drawHero(g, p.x - i*10, p.y, 60, p.charDef, p.legPhase, p.sliding, true, false);
+        g.restore();
+      }
+    }
+
     if (Game.activePowerups.shield>0){
       g.beginPath(); g.arc(p.x, p.y-30, 34, 0, Math.PI*2);
       g.strokeStyle='rgba(107,227,255,.8)'; g.lineWidth=3; g.stroke();
@@ -587,6 +812,8 @@ function renderGame(g){
     }
     const glow = Game.activePowerups.invincible>0 || Game.activePowerups.rocket>0;
     if (showHero) drawHero(g, p.x, p.y, 60, p.charDef, p.legPhase, p.sliding, true, glow);
+
+    if (Game.pet) drawPet(g, Game.pet.x, Game.pet.y, Game.pet.t, Game.pet.color);
   }
 
   if (Game.state === 'bossIntro'){

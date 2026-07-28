@@ -99,8 +99,9 @@ function loop(t){
   lastT = t;
 
   pollGamepad();
+  updateCountdownUI();
 
-  if (Game.state==='playing' || Game.state==='boss' || Game.state==='bossIntro'){
+  if (Game.state==='playing' || Game.state==='boss' || Game.state==='bossIntro' || Game.state==='countdown'){
     updateGame(dt);
     updateHud();
   }

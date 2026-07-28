@@ -48,6 +48,12 @@ function drawHero(g, x, y, size, charDef, legPhase, sliding, faceRight, glow){
   roundRect(g, -16, bodyY, 32, bodyH, 14);
   g.fill();
 
+  // character outline — a soft dark stroke around the silhouette so
+  // the hero reads clearly against any world background/weather
+  g.lineWidth = 2.2;
+  g.strokeStyle = 'rgba(20,25,40,.45)';
+  g.stroke();
+
   // rim-light (fake dynamic lighting: brighter edge facing "sun")
   g.strokeStyle = 'rgba(255,255,255,.55)';
   g.lineWidth = 2;
@@ -127,6 +133,24 @@ function drawBoss(g, boss){
   g.restore();
 }
 
+/* ---------------- PET / COMPANION RENDERING ---------------- */
+function drawPet(g, x, y, t, color){
+  g.save();
+  g.translate(x, y + Math.sin(t*4)*4);
+  g.shadowColor = color; g.shadowBlur = 12;
+  g.fillStyle = color;
+  g.beginPath(); g.arc(0,0,10,0,Math.PI*2); g.fill();
+  g.shadowBlur = 0;
+  // tiny wings
+  const flap = Math.sin(t*14)*5;
+  g.fillStyle = 'rgba(255,255,255,.7)';
+  g.beginPath(); g.ellipse(-9, flap, 6, 3, 0.4, 0, Math.PI*2); g.fill();
+  g.beginPath(); g.ellipse(9, -flap, 6, 3, -0.4, 0, Math.PI*2); g.fill();
+  g.fillStyle = '#233047';
+  g.beginPath(); g.arc(3,-2,1.6,0,Math.PI*2); g.fill();
+  g.restore();
+}
+
 /* ---------------- PARTICLE SYSTEM ----------------
    A single flat particle pool covers sparkles, smoke, fire and
    explosions — differentiated by spawn parameters, which keeps
@@ -134,13 +158,17 @@ function drawBoss(g, boss){
 function makeParticlePool(){
   return {
     list: [],
+    maxParticles: 260, // hard cap — keeps memory/FPS stable on long endless runs
+    qualityScale(){ return SAVE.settings.quality === 'low' ? 0.45 : 1; },
     spawn(x,y,color,n,opts){
       opts = opts || {};
+      n = Math.max(1, Math.round(n * this.qualityScale()));
       const speed = opts.speed || [40,180];
       const life = opts.life || [0.35,0.7];
       const size = opts.size || [2,4];
       const gravity = opts.gravity != null ? opts.gravity : 300;
       for (let i=0;i<n;i++){
+        if (this.list.length >= this.maxParticles) this.list.shift(); // drop oldest, stay bounded
         const a = Math.random()*Math.PI*2;
         const sp = speed[0] + Math.random()*(speed[1]-speed[0]);
         this.list.push({
@@ -154,6 +182,7 @@ function makeParticlePool(){
     },
     fire(x,y){ this.spawn(x,y,'#ff9a4d',4,{speed:[20,70],life:[0.25,0.45],gravity:-80,upBias:40,size:[3,6]}); },
     smoke(x,y){ this.spawn(x,y,'rgba(160,160,170,0.5)',2,{speed:[10,40],life:[0.6,1.1],gravity:-40,size:[4,8]}); },
+    dust(x,y,color){ this.spawn(x,y,color||'rgba(210,200,180,.55)',3,{speed:[15,55],life:[0.2,0.4],gravity:60,size:[2,4],shrink:true}); },
     sparkle(x,y,color){ this.spawn(x,y,color||'#fff3b0',6,{speed:[30,140],life:[0.3,0.6],gravity:200,size:[2,3]}); },
     explosion(x,y,color){
       this.spawn(x,y,color||'#ff5470',24,{speed:[80,320],life:[0.3,0.7],gravity:250,size:[2,5]});

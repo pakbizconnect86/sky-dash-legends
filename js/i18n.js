@@ -14,7 +14,10 @@ const LANGS = {
     newBest: 'NEW HIGH SCORE', energyEmpty: 'Out of Energy', spin: 'LUCKY SPIN',
     chests: 'CHESTS', claim: 'CLAIM', selected: 'SELECTED', select: 'SELECT', buy: 'BUY',
     dailyReward: 'Daily Reward!', weeklyChallenges: 'Weekly Challenges', achievements: 'Achievements',
-    upgrade: 'UPGRADE', maxed: 'MAXED', bossIncoming: 'BOSS INCOMING', victory: 'VICTORY!'
+    upgrade: 'UPGRADE', maxed: 'MAXED', bossIncoming: 'BOSS INCOMING', victory: 'VICTORY!',
+    continueRun: 'CONTINUE', combo: 'COMBO', battlePass: 'BATTLE PASS', pets: 'PETS',
+    skillTree: 'SKILL TREE', miniBoss: 'MINI-BOSS', secretFound: 'SECRET CHEST FOUND!',
+    reviveOffer: 'Revive for', getReady: 'GET READY'
   },
   ur: {
     play: 'KHELO', shop: 'DUKAAN', missions: 'MISSIONS', leaderboard: 'LEADERBOARD',
@@ -24,7 +27,10 @@ const LANGS = {
     newBest: 'NAYA HIGH SCORE', energyEmpty: 'Energy Khatam', spin: 'LUCKY SPIN',
     chests: 'SANDOOQ', claim: 'LO', selected: 'CHUNA GAYA', select: 'CHUNO', buy: 'KHAREEDO',
     dailyReward: 'Rozana Inaam!', weeklyChallenges: 'Haftawar Challenges', achievements: 'Kaarnamay',
-    upgrade: 'BEHTAR BANAO', maxed: 'PORA', bossIncoming: 'BOSS AA RAHA HAI', victory: 'JEET!'
+    upgrade: 'BEHTAR BANAO', maxed: 'PORA', bossIncoming: 'BOSS AA RAHA HAI', victory: 'JEET!',
+    continueRun: 'JAARI RAKHO', combo: 'COMBO', battlePass: 'BATTLE PASS', pets: 'PALTOO',
+    skillTree: 'SKILL TREE', miniBoss: 'CHHOTA BOSS', secretFound: 'CHHUPA SANDOOQ MILA!',
+    reviveOffer: 'Zinda karo', getReady: 'TAYAR HO JAO'
   }
 };
 

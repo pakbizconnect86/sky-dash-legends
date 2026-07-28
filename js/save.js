@@ -25,11 +25,17 @@ function defaultSave(){
 
     unlockedHeroes: ['blaze'],
     selectedHero: 'blaze',
-    heroUpgrades: {},        // heroId -> { speed:0, magnet:0, coin:0 } tier counts
+    heroUpgrades: {},        // heroId -> { speed:0, magnet:0, coin:0, luck:0 } tier counts
     heroLevels: {},          // heroId -> xp earned while using them (cosmetic level)
 
     unlockedSkins: {},       // heroId -> [skinIds]
     selectedSkin: {},        // heroId -> skinId | null
+
+    unlockedPets: ['sparky'],
+    selectedPet: 'sparky',
+
+    battlePass: { premiumUnlocked:false, claimedFree:{}, claimedPremium:{} },
+    bestCombo: 0,
 
     highScores: { endless:0, timeTrial:0, survival:0, story:0 },
     leaderboard: [],         // [{mode, score, date}]
@@ -70,6 +76,11 @@ function load(){
     const base = defaultSave();
     const merged = Object.assign({}, base, parsed);
     merged.settings = Object.assign({}, base.settings, parsed.settings || {});
+    merged.battlePass = Object.assign({}, base.battlePass, parsed.battlePass || {});
+    merged.battlePass.claimedFree = Object.assign({}, parsed.battlePass && parsed.battlePass.claimedFree || {});
+    merged.battlePass.claimedPremium = Object.assign({}, parsed.battlePass && parsed.battlePass.claimedPremium || {});
+    if (!merged.unlockedPets || merged.unlockedPets.length===0) merged.unlockedPets = ['sparky'];
+    if (!merged.selectedPet) merged.selectedPet = 'sparky';
     return merged;
   }catch(e){
     console.warn('Save file corrupted, starting fresh.', e);
@@ -138,7 +149,7 @@ function buyUpgrade(heroId, track){
   const cost = upgradeCost(tier);
   if (SAVE.coins < cost) return false;
   SAVE.coins -= cost;
-  if (!SAVE.heroUpgrades[heroId]) SAVE.heroUpgrades[heroId] = { speed:0, magnet:0, coin:0 };
+  if (!SAVE.heroUpgrades[heroId]) SAVE.heroUpgrades[heroId] = { speed:0, magnet:0, coin:0, luck:0 };
   SAVE.heroUpgrades[heroId][track]++;
   persist();
   return true;

@@ -58,6 +58,12 @@ const AudioSys = (function(){
     levelUp(){ chord([523,659,784,1046], .35, .12); },
     reward(){ chord([440,554,659], .3, .12); },
     spinTick(){ blip(700, .04, 'square', .06); },
+    land(){ blip(180, .09, 'sine', .08, 90); },
+    comboUp(){ blip(750, .08, 'square', .09, 950); },
+    revive(){ chord([392,523,659,784], .4, .14); },
+    secretChest(){ chord([659,880,1108], .35, .15); },
+    countdownTick(){ blip(440, .12, 'square', .1); },
+    countdownGo(){ chord([523,659,784], .3, .16); },
 
     startMusic(scale, isBoss){
       currentScale = scale; bossMode = !!isBoss;

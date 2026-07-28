@@ -185,6 +185,14 @@ function updateHud(){
   document.getElementById('hudGems').textContent = Game.gemsThisRun;
   document.getElementById('hudTimer').textContent = Math.ceil(Game.timeLeft);
 
+  const comboPill = document.getElementById('comboPill');
+  if (Game.combo >= 3){
+    comboPill.classList.remove('hidden');
+    document.getElementById('comboVal').textContent = Math.floor(Game.combo);
+  } else {
+    comboPill.classList.add('hidden');
+  }
+
   const heartsRow = document.getElementById('heartsRow');
   if (Game.player){
     heartsRow.innerHTML = Array.from({length:Game.player.maxHearts}, (_,i)=>
@@ -210,16 +218,58 @@ function updateHud(){
   }
 }
 updateHudCallback = updateHud;
+onBossEncounter = function(name){ showStageBanner(name.toUpperCase()); };
+showBanner_i18n = function(key){ showStageBanner(t(key)); };
+
+/* ---------------- REVIVE / CONTINUE MODAL ---------------- */
+onReviveOffered = function(cost){
+  document.getElementById('reviveCostLabel').textContent = cost + ' 🪙';
+  document.getElementById('acceptReviveBtn').disabled = SAVE.coins < cost;
+  document.getElementById('reviveOverlay').classList.remove('hidden');
+};
+document.getElementById('acceptReviveBtn').addEventListener('click', ()=>{
+  if (acceptRevive()){
+    document.getElementById('reviveOverlay').classList.add('hidden');
+    refreshCurrencyLabels();
+  }
+});
+document.getElementById('declineReviveBtn').addEventListener('click', ()=>{
+  document.getElementById('reviveOverlay').classList.add('hidden');
+  declineRevive();
+});
+
+/* ---------------- COUNTDOWN OVERLAY ----------------
+   Polled once per frame from main.js's loop (cheap: just a DOM text
+   update + a couple of one-shot sounds keyed off the integer second). */
+let lastCountdownWhole = -1;
+function updateCountdownUI(){
+  const el = document.getElementById('countdownOverlay');
+  if (Game.state !== 'countdown'){
+    if (!el.classList.contains('hidden')) el.classList.add('hidden');
+    lastCountdownWhole = -1;
+    return;
+  }
+  el.classList.remove('hidden');
+  const whole = Math.ceil(Game.countdownT);
+  const label = whole > 0 ? String(whole) : t('getReady').split(' ')[0] || 'GO';
+  document.getElementById('countdownNum').textContent = whole > 0 ? whole : 'GO!';
+  if (whole !== lastCountdownWhole){
+    lastCountdownWhole = whole;
+    if (whole > 0) AudioSys.countdownTick(); else AudioSys.countdownGo();
+  }
+}
 
 onRunFinished = function(won){
   document.getElementById('hud').classList.add('hidden');
   document.getElementById('bossHpWrap').classList.add('hidden');
   document.getElementById('touchHint').classList.add('hidden');
+  document.getElementById('reviveOverlay').classList.add('hidden');
+  document.getElementById('countdownOverlay').classList.add('hidden');
 
   const isStoryContinue = Game.mode==='story' && won;
   const wasHighScore = Game.mode!=='story' && Game.score >= (SAVE.highScores[Game.mode]||0) && Game.score>0;
 
-  document.getElementById('goTitle').textContent = won ? (Game.boss?t('victory'):'STAGE CLEAR') : t('gameOver');
+  document.getElementById('goTitle').textContent = won ? ((Game.stage && Game.stage.type==='boss') ? t('victory') : 'STAGE CLEAR') : t('gameOver');
   document.getElementById('goScore').textContent = Math.floor(Game.score);
   document.getElementById('goCoins').textContent = Game.coinsThisRun;
   document.getElementById('goGems').textContent = Game.gemsThisRun;
@@ -280,7 +330,30 @@ function renderShop(){
   const list = document.getElementById('shopList');
   if (shopTab === 'heroes') renderShopHeroes(list);
   else if (shopTab === 'skins') renderShopSkins(list);
+  else if (shopTab === 'pets') renderShopPets(list);
   else renderShopUpgrades(list);
+}
+function renderShopPets(list){
+  list.innerHTML = PET_DEFS.map(pet=>{
+    const owned = SAVE.unlockedPets.includes(pet.id);
+    const selected = SAVE.selectedPet === pet.id;
+    let action;
+    if (selected) action = `<button class="btn btn-ghost btn-small display-font" disabled>${t('selected')}</button>`;
+    else if (owned) action = `<button class="btn btn-secondary btn-small display-font" data-selpet="${pet.id}">${t('select')}</button>`;
+    else action = `<button class="btn btn-primary btn-small display-font" data-buypet="${pet.id}" ${SAVE.gems<pet.cost?'disabled':''}>${pet.cost}💎</button>`;
+    return `<div class="char-card ${selected?'selected':''}">
+      <div class="char-avatar" style="background:radial-gradient(circle at 35% 30%, #fff, ${pet.color});border-radius:50%;"></div>
+      <div class="char-info"><div class="char-name">${pet.name}</div><div class="char-desc">${pet.desc}</div></div>
+      <div class="char-action">${action}</div>
+    </div>`;
+  }).join('');
+  list.querySelectorAll('[data-buypet]').forEach(btn=>btn.addEventListener('click', ()=>{
+    const id = btn.getAttribute('data-buypet'); const pet = PET_DEFS.find(p=>p.id===id);
+    if (SAVE.gems >= pet.cost){ SAVE.gems -= pet.cost; SAVE.unlockedPets.push(id); SAVE.selectedPet = id; AudioSys.reward(); persist(); renderShop(); refreshCurrencyLabels(); }
+  }));
+  list.querySelectorAll('[data-selpet]').forEach(btn=>btn.addEventListener('click', ()=>{
+    SAVE.selectedPet = btn.getAttribute('data-selpet'); AudioSys.click(); persist(); renderShop();
+  }));
 }
 function renderShopHeroes(list){
   list.innerHTML = CHARACTERS.map(c=>{
@@ -342,9 +415,8 @@ function renderShopSkins(list){
 function renderShopUpgrades(list){
   const heroId = SAVE.selectedHero;
   const hero = CHARACTERS.find(c=>c.id===heroId);
-  const tracks = [ ['speed','Speed'], ['magnet','Magnet Radius'], ['coin','Coin Value'] ];
   list.innerHTML = `<div style="text-align:center;font-weight:800;color:var(--ink);font-family:'Baloo 2';">Upgrading: ${hero.name}</div>` +
-    tracks.map(([key,label])=>{
+    UPGRADE_TRACKS.map(({key,label})=>{
       const tier = upgradeTier(heroId,key);
       const maxed = tier>=5;
       const cost = upgradeCost(tier);
@@ -374,7 +446,51 @@ function renderMissionsPanel(){
   const list = document.getElementById('missionsList');
   if (missionTab === 'daily') renderMissionCards(list, MISSIONS_TEMPLATE, SAVE.missionProgress, SAVE.missionClaimed, claimMission);
   else if (missionTab === 'weekly') renderMissionCards(list, WEEKLY_TEMPLATE, SAVE.weeklyProgress, SAVE.weeklyClaimed, claimWeekly);
+  else if (missionTab === 'battlepass') renderBattlePass(list);
   else renderAchievementCards(list);
+}
+function renderBattlePass(list){
+  const rows = [`<div class="panel-card" style="margin-bottom:4px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <div><div class="mission-name">Season Pass</div><div class="char-desc">Free tier for everyone. Premium tier doubles every reward.</div></div>
+      ${SAVE.battlePass.premiumUnlocked
+        ? `<span style="font-family:'Baloo 2';font-weight:800;color:#7748d6;">★ PREMIUM</span>`
+        : `<button class="btn btn-purple btn-small display-font" id="unlockPremiumPassBtn">${BATTLE_PASS_PREMIUM_COST}💎</button>`}
+    </div>
+  </div>`];
+  BATTLE_PASS_TIERS.forEach(tier=>{
+    const unlocked = SAVE.accountLevel >= tier.levelRequired;
+    const freeClaimed = !!SAVE.battlePass.claimedFree[tier.tier];
+    const premClaimed = !!SAVE.battlePass.claimedPremium[tier.tier];
+    rows.push(`<div class="mission-card">
+      <div class="mission-top"><div class="mission-name">Tier ${tier.tier} — Lv.${tier.levelRequired}</div>
+        <div class="mission-reward">Free +${rewardLabel(tier.free)}</div></div>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        ${unlocked && !freeClaimed ? `<button class="btn btn-secondary btn-small display-font" data-bp-free="${tier.tier}">${t('claim')}</button>` : (freeClaimed ? `<span style="font-size:11px;color:#3fbf8f;font-weight:800;">✓ Free</span>` : `<span style="font-size:11px;color:#aab2c8;">🔒 Free</span>`)}
+        ${SAVE.battlePass.premiumUnlocked && unlocked && !premClaimed ? `<button class="btn btn-purple btn-small display-font" data-bp-prem="${tier.tier}">${t('claim')} +${rewardLabel(tier.premium)}</button>` : (premClaimed ? `<span style="font-size:11px;color:#7748d6;font-weight:800;">✓ Premium</span>` : `<span style="font-size:11px;color:#aab2c8;">🔒 +${rewardLabel(tier.premium)}</span>`)}
+      </div>
+    </div>`);
+  });
+  list.innerHTML = rows.join('');
+  const unlockBtn = document.getElementById('unlockPremiumPassBtn');
+  if (unlockBtn) unlockBtn.addEventListener('click', ()=>{
+    if (SAVE.gems >= BATTLE_PASS_PREMIUM_COST){
+      SAVE.gems -= BATTLE_PASS_PREMIUM_COST; SAVE.battlePass.premiumUnlocked = true;
+      AudioSys.reward(); persist(); renderMissionsPanel(); refreshCurrencyLabels();
+    }
+  });
+  list.querySelectorAll('[data-bp-free]').forEach(btn=>btn.addEventListener('click', ()=>{
+    const tierN = btn.getAttribute('data-bp-free');
+    const tier = BATTLE_PASS_TIERS.find(x=>x.tier==tierN);
+    grantReward(tier.free); SAVE.battlePass.claimedFree[tierN] = true;
+    AudioSys.reward(); persist(); renderMissionsPanel(); refreshCurrencyLabels();
+  }));
+  list.querySelectorAll('[data-bp-prem]').forEach(btn=>btn.addEventListener('click', ()=>{
+    const tierN = btn.getAttribute('data-bp-prem');
+    const tier = BATTLE_PASS_TIERS.find(x=>x.tier==tierN);
+    grantReward(tier.premium); SAVE.battlePass.claimedPremium[tierN] = true;
+    AudioSys.reward(); persist(); renderMissionsPanel(); refreshCurrencyLabels();
+  }));
 }
 function rewardLabel(reward){
   const parts = [];
@@ -467,7 +583,9 @@ function renderProfile(){
     ['Best Endless', SAVE.highScores.endless],
     ['Best Time Trial', SAVE.highScores.timeTrial],
     ['Best Survival', SAVE.highScores.survival],
-    ['Total Coins Earned', SAVE.totalCoinsCollected]
+    ['Best Combo', SAVE.bestCombo||0],
+    ['Total Coins Earned', SAVE.totalCoinsCollected],
+    ['Companion', (PET_DEFS.find(p=>p.id===SAVE.selectedPet)||{name:'None'}).name]
   ];
   grid.innerHTML = stats.map(([l,v])=>`<div class="stat-box"><div class="v">${v}</div><div class="l">${l.toUpperCase()}</div></div>`).join('');
 }
