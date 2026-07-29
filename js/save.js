@@ -31,8 +31,10 @@ function defaultSave(){
     unlockedSkins: {},       // heroId -> [skinIds]
     selectedSkin: {},        // heroId -> skinId | null
 
-    unlockedPets: ['sparky'],
-    selectedPet: 'sparky',
+    unlockedPets: ['dragon'],
+    selectedPet: 'dragon',
+
+    startingPowerupCharges: {}, // kind -> count of purchased one-run starter charges
 
     battlePass: { premiumUnlocked:false, claimedFree:{}, claimedPremium:{} },
     bestCombo: 0,
@@ -59,6 +61,8 @@ function defaultSave(){
       sfxVolume: 0.8, musicVolume: 0.5,
       language: 'en',
       screenShake: true,
+      vibration: true,
+      showFps: false,
       quality: 'high' // 'high' | 'low' — affects particle density for low-end devices
     }
   };
@@ -79,8 +83,13 @@ function load(){
     merged.battlePass = Object.assign({}, base.battlePass, parsed.battlePass || {});
     merged.battlePass.claimedFree = Object.assign({}, parsed.battlePass && parsed.battlePass.claimedFree || {});
     merged.battlePass.claimedPremium = Object.assign({}, parsed.battlePass && parsed.battlePass.claimedPremium || {});
-    if (!merged.unlockedPets || merged.unlockedPets.length===0) merged.unlockedPets = ['sparky'];
-    if (!merged.selectedPet) merged.selectedPet = 'sparky';
+    if (!merged.unlockedPets || merged.unlockedPets.length===0) merged.unlockedPets = ['dragon'];
+    if (!merged.selectedPet) merged.selectedPet = 'dragon';
+    // migrate retired pet ids from the previous roster (sparky/glimmer/ash)
+    const petMigration = { sparky:'dragon', glimmer:'robot', ash:'phoenix' };
+    merged.unlockedPets = merged.unlockedPets.map(id => petMigration[id] || id);
+    if (petMigration[merged.selectedPet]) merged.selectedPet = petMigration[merged.selectedPet];
+    if (!merged.startingPowerupCharges) merged.startingPowerupCharges = {};
     return merged;
   }catch(e){
     console.warn('Save file corrupted, starting fresh.', e);

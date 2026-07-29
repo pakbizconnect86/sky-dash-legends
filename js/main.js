@@ -24,6 +24,7 @@ resize();
 window.addEventListener('keydown', e=>{
   if (e.code==='Space' || e.key==='ArrowUp' || e.key==='w'){ e.preventDefault(); doJump(); }
   if (e.key==='ArrowDown' || e.key==='s'){ doSlide(); }
+  if (e.key==='Shift' || e.key==='e'){ doDash(); }
   if (e.key==='Escape' || e.key==='p'){ togglePause(); }
 });
 
@@ -43,6 +44,15 @@ function bindSwipeZone(el, onTap){
 bindSwipeZone(document.getElementById('leftTouchZone'), doJump);
 bindSwipeZone(document.getElementById('rightTouchZone'), doJump);
 canvas.addEventListener('mousedown', ()=>{ if (Game.state==='playing'||Game.state==='boss') doJump(); });
+const dashBtnEl = document.getElementById('dashBtn');
+if (dashBtnEl) dashBtnEl.addEventListener('touchstart', e=>{ e.preventDefault(); doDash(); }, {passive:false});
+
+/* ---------------- HAPTICS ----------------
+   A thin wrapper so game.js can request a vibration without caring
+   whether the device/browser supports it or whether the setting is off. */
+function hapticPulse(ms){
+  if (SAVE.settings.vibration && navigator.vibrate){ navigator.vibrate(ms); }
+}
 
 /* ---------------- INPUT: GAMEPAD ---------------- */
 let gamepadIndex = null;
@@ -63,13 +73,15 @@ function pollGamepad(){
   if (!gp) return;
   const jumpBtn = gp.buttons[0] && gp.buttons[0].pressed; // A / Cross
   const slideBtn = (gp.buttons[1] && gp.buttons[1].pressed) || (gp.axes[1] > 0.6); // B/Circle or stick down
+  const dashBtn = gp.buttons[2] && gp.buttons[2].pressed; // X / Square
   const pauseBtn = gp.buttons[9] && gp.buttons[9].pressed; // Start
   if (jumpBtn && !gpJumpLatch) doJump();
   if (slideBtn && !gpSlideLatch) doSlide();
+  if (dashBtn && !gpDashLatch) doDash();
   if (pauseBtn && !gpPauseLatch) togglePause();
-  gpJumpLatch = jumpBtn; gpSlideLatch = slideBtn; gpPauseLatch = pauseBtn;
+  gpJumpLatch = jumpBtn; gpSlideLatch = slideBtn; gpDashLatch = dashBtn; gpPauseLatch = pauseBtn;
 }
-let gpPauseLatch = false;
+let gpPauseLatch = false, gpDashLatch = false;
 
 /* ---------------- CINEMATIC INTRO ---------------- */
 function playIntro(){
@@ -92,11 +104,25 @@ function enterMenu(){
 
 /* ---------------- MAIN LOOP ---------------- */
 let lastT = 0;
+let fpsAccum = 0, fpsFrames = 0, fpsTimer = 0;
 function loop(t){
   if (!lastT) lastT = t;
   let dt = (t-lastT)/1000;
   dt = Math.min(dt, 0.033);
   lastT = t;
+
+  if (SAVE.settings.showFps){
+    fpsFrames++; fpsTimer += dt;
+    if (fpsTimer >= 0.5){
+      const fps = Math.round(fpsFrames/fpsTimer);
+      const el = document.getElementById('fpsCounter');
+      if (el){ el.textContent = fps + ' FPS'; el.classList.remove('hidden'); }
+      fpsFrames = 0; fpsTimer = 0;
+    }
+  } else {
+    const el = document.getElementById('fpsCounter');
+    if (el && !el.classList.contains('hidden')) el.classList.add('hidden');
+  }
 
   pollGamepad();
   updateCountdownUI();

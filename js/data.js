@@ -18,7 +18,7 @@ const WORLDS = [
     fog: 'rgba(180,220,180,0.35)',
     weatherPool: ['clear', 'rain', 'fog'],
     obstacleSkin: { spike: '#4a8f5c', ground: '#6b4a2b', flyer: '#e0a24a' },
-    enemyNames: ['Thornling', 'Bramble Bat', 'Moss Golem'],
+    enemyNames: ['Thornling', 'Bramble Bat', 'Moss Golem'], enemyKind: 'bird',
     musicScale: [261.6, 329.6, 392.0, 440.0, 392.0, 329.6],
     boss: { name: 'The Ancient Treant', color: '#2f6b3a', hp: 100 }
   },
@@ -29,7 +29,7 @@ const WORLDS = [
     fog: 'rgba(230,190,120,0.35)',
     weatherPool: ['clear', 'sandstorm'],
     obstacleSkin: { spike: '#c96a2b', ground: '#a5672f', flyer: '#ffb347' },
-    enemyNames: ['Sand Viper', 'Scorpion Rider', 'Dune Wraith'],
+    enemyNames: ['Sand Viper', 'Scorpion Rider', 'Dune Wraith'], enemyKind: 'ghost',
     musicScale: [293.7, 349.2, 440.0, 493.9, 440.0, 349.2],
     boss: { name: 'Pharaoh of Ash', color: '#c9832b', hp: 140 }
   },
@@ -40,7 +40,7 @@ const WORLDS = [
     fog: 'rgba(220,240,255,0.45)',
     weatherPool: ['clear', 'snow', 'thunder'],
     obstacleSkin: { spike: '#7fb8d9', ground: '#5d86a3', flyer: '#bfe3ff' },
-    enemyNames: ['Frost Sprite', 'Yeti Cub', 'Ice Wraith'],
+    enemyNames: ['Frost Sprite', 'Yeti Cub', 'Ice Wraith'], enemyKind: 'ghost',
     musicScale: [349.2, 415.3, 493.9, 587.3, 493.9, 415.3],
     boss: { name: 'The Frozen Colossus', color: '#7fc4e8', hp: 180 }
   },
@@ -51,7 +51,7 @@ const WORLDS = [
     fog: 'rgba(255,120,60,0.35)',
     weatherPool: ['clear', 'ashfall', 'thunder'],
     obstacleSkin: { spike: '#8a2f1e', ground: '#4a2a1c', flyer: '#ff7a3d' },
-    enemyNames: ['Ember Imp', 'Magma Bat', 'Cinder Golem'],
+    enemyNames: ['Ember Imp', 'Magma Bat', 'Cinder Golem'], enemyKind: 'fireMonster',
     musicScale: [220.0, 261.6, 311.1, 349.2, 311.1, 261.6],
     boss: { name: 'The Magma Behemoth', color: '#ff5a2b', hp: 220 }
   },
@@ -62,7 +62,7 @@ const WORLDS = [
     fog: 'rgba(120,90,220,0.3)',
     weatherPool: ['clear', 'fog', 'rain'],
     obstacleSkin: { spike: '#ff2fd6', ground: '#2fd6ff', flyer: '#c9ff2f' },
-    enemyNames: ['Rogue Drone', 'Data Wraith', 'Sentry Bot'],
+    enemyNames: ['Rogue Drone', 'Data Wraith', 'Sentry Bot'], enemyKind: 'robot',
     musicScale: [277.2, 329.6, 392.0, 466.2, 392.0, 329.6],
     boss: { name: 'The Rogue Mainframe', color: '#ff2fd6', hp: 260 }
   },
@@ -73,9 +73,20 @@ const WORLDS = [
     fog: 'rgba(140,160,255,0.25)',
     weatherPool: ['clear', 'meteor'],
     obstacleSkin: { spike: '#8a8aff', ground: '#5a5a8a', flyer: '#ffcf5a' },
-    enemyNames: ['Void Drifter', 'Ion Wisp', 'Star Reaper'],
+    enemyNames: ['Void Drifter', 'Ion Wisp', 'Star Reaper'], enemyKind: 'robot',
     musicScale: [196.0, 233.1, 277.2, 329.6, 277.2, 233.1],
     boss: { name: 'The Void Sentinel', color: '#8a5aff', hp: 300 }
+  },
+  {
+    id: 'skyCastle', name: 'Sky Castle', unlockDistance: 24000,
+    sky: { day: ['#ffe8b0', '#fff6e0'], night: ['#2a2050', '#4a3a7a'] },
+    ground: '#e8d8c0', groundTop: '#fff6e8',
+    fog: 'rgba(255,240,210,0.4)',
+    weatherPool: ['clear', 'thunder', 'fog'],
+    obstacleSkin: { spike: '#c9a86a', ground: '#8a6a4a', flyer: '#ffd8a0' },
+    enemyNames: ['Sky Wyrmling', 'Cloud Sentinel', 'Storm Drake'], enemyKind: 'dragon',
+    musicScale: [392.0, 466.2, 523.3, 622.3, 523.3, 466.2],
+    boss: { name: 'The Sky Sovereign Dragon', color: '#ffb347', hp: 340 }
   }
 ];
 
@@ -110,13 +121,18 @@ const CHARACTERS = [
 ];
 
 /* ---------------- COMPANIONS / PETS ----------------
-   Purely passive helpers that orbit the hero. Bought with gems,
-   equip one at a time from the Shop → Pets tab.                   */
+   Passive helpers that orbit the hero. Bought with gems, equip one
+   at a time from the Shop → Pets tab. Each pet both pulls in nearby
+   coins/gems AND periodically zaps the nearest ground enemy.       */
 const PET_DEFS = [
-  { id:'sparky',  name:'Sparky',  cost:0,   color:'#ffd23f', desc:'A loyal starter spark. Small coin-collect radius.' , radius:70 },
-  { id:'glimmer', name:'Glimmer', cost:400, color:'#6be3ff', desc:'Glimmer widens your passive collection radius.',      radius:110 },
-  { id:'ash',     name:'Ash',     cost:900, color:'#ff6b4d', desc:'Ash burns nearby obstacles' + '\u2019' + ' fear — bigger radius still.', radius:150 }
+  { id:'dragon',  name:'Dragon',  kind:'dragon', cost:0,   color:'#ff6b4d', desc:'A loyal hatchling. Breathes a small ember at enemies.', radius:90,  atkCooldown:3.0 },
+  { id:'robot',   name:'Robot',   kind:'robot',  cost:400, color:'#6be3ff', desc:'Scans a wide radius and zaps threats with a laser.',     radius:130, atkCooldown:2.4 },
+  { id:'fairy',   name:'Fairy',   kind:'fairy',  cost:900, color:'#c78aff', desc:'Sprinkles enemies with disabling dust, very frequently.', radius:110, atkCooldown:1.8 },
+  { id:'phoenix', name:'Phoenix', kind:'phoenix',cost:1600,color:'#ffb347', desc:'Widest radius and hardest-hitting attack in the sky.',    radius:160, atkCooldown:2.0 }
 ];
+
+/* Power Shop catalog is defined further below, right after
+   POWERUP_KEYS exists (see "POWER SHOP" section). */
 
 /* ---------------- BATTLE PASS ----------------
    A simple seasonal-style reward track driven by account level.
@@ -163,6 +179,15 @@ const POWERUP_DEFS = {
   healthPack:  { name:'Health Pack',   color:'#4dd4a8', icon:'❤️', duration:0  } // instant heal
 };
 const POWERUP_KEYS = Object.keys(POWERUP_DEFS);
+
+/* ---------------- POWER SHOP ----------------
+   Buy one-time "starter charges" with coins — your next run begins
+   with that power-up already active, on top of anything found
+   during the run itself. Health Pack isn't sold here (it's instant,
+   not a timed buff, so a "starting charge" wouldn't do anything).  */
+const POWER_SHOP_ITEMS = POWERUP_KEYS
+  .filter(k => k !== 'healthPack')
+  .map(k => ({ kind:k, cost: 60 + Math.round(POWERUP_DEFS[k].duration*8) }));
 
 /* ---------------- MISSIONS (rotate daily-ish) ---------------- */
 const MISSIONS_TEMPLATE = [

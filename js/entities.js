@@ -19,16 +19,22 @@ function roundRect(g,x,y,w,h,r){
 /* ---------------- HERO RENDERING ----------------
    Drawn at design-scale 40px, then transformed to the requested
    size. `glow` adds a soft outer light (used for invincibility /
-   rocket flight / boss-intro highlight).                         */
-function drawHero(g, x, y, size, charDef, legPhase, sliding, faceRight, glow){
+   rocket flight / boss-intro highlight). `expr` drives the face:
+   'idle' (default, blinks + breathes), 'happy' (victory smile),
+   'hurt' (wince), 'dead' (X eyes).                                */
+function drawHero(g, x, y, size, charDef, legPhase, sliding, faceRight, glow, expr){
+  expr = expr || 'idle';
   g.save();
   g.translate(x,y);
   const s = size/40;
   g.scale(faceRight===false ? -s : s, s);
 
   const bodyColor = charDef.body, accentColor = charDef.accent;
-  const bodyH = sliding ? 22 : 34;
-  const bodyY = sliding ? -12 : -30;
+  // gentle breathing: a tiny height pulse so the hero never looks
+  // frozen even when standing still (countdown, menu preview)
+  const breathe = Math.sin(performance.now()/450) * 1.1;
+  const bodyH = (sliding ? 22 : 34) + breathe;
+  const bodyY = (sliding ? -12 : -30) - breathe*0.5;
 
   if (glow){
     g.shadowColor = bodyColor;
@@ -66,10 +72,37 @@ function drawHero(g, x, y, size, charDef, legPhase, sliding, faceRight, glow){
   roundRect(g, -10, bodyY+4, 14, bodyH-10, 8);
   g.fill();
 
-  // eye
   g.shadowBlur = 0;
-  g.fillStyle = '#233047';
-  g.beginPath(); g.arc(8, bodyY+bodyH*0.35, 3, 0, Math.PI*2); g.fill();
+  const eyeX = 8, eyeY = bodyY+bodyH*0.35;
+
+  if (expr === 'dead'){
+    // X eyes
+    g.strokeStyle = '#233047'; g.lineWidth = 1.6;
+    g.beginPath(); g.moveTo(eyeX-3,eyeY-3); g.lineTo(eyeX+3,eyeY+3); g.moveTo(eyeX+3,eyeY-3); g.lineTo(eyeX-3,eyeY+3); g.stroke();
+  } else {
+    // blink cycle: eyes closed for a short window every few seconds
+    const blinkCycle = (performance.now()/1000) % 3.4;
+    const blinking = blinkCycle > 3.2 && expr !== 'hurt';
+    if (blinking){
+      g.strokeStyle = '#233047'; g.lineWidth = 1.6;
+      g.beginPath(); g.moveTo(eyeX-3,eyeY); g.lineTo(eyeX+3,eyeY); g.stroke();
+    } else {
+      g.fillStyle = '#233047';
+      g.beginPath(); g.arc(eyeX, eyeY, expr==='hurt' ? 2.2 : 3, 0, Math.PI*2); g.fill();
+      if (expr==='hurt'){
+        // furrowed brow
+        g.strokeStyle = '#233047'; g.lineWidth = 1.4;
+        g.beginPath(); g.moveTo(eyeX-4,eyeY-5); g.lineTo(eyeX+4,eyeY-3); g.stroke();
+      }
+    }
+    // mouth — smiles by default, bigger grin when happy, flat when hurt
+    g.strokeStyle = '#233047'; g.lineWidth = 1.4; g.lineCap = 'round';
+    g.beginPath();
+    if (expr==='happy'){ g.arc(eyeX-1, eyeY+5, 4, 0.15*Math.PI, 0.85*Math.PI); }
+    else if (expr==='hurt'){ g.moveTo(eyeX-3, eyeY+7); g.lineTo(eyeX+3, eyeY+7); }
+    else { g.arc(eyeX-1, eyeY+6, 2.6, 0.15*Math.PI, 0.85*Math.PI); }
+    g.stroke();
+  }
 
   // wing/arm accessory
   g.fillStyle = accentColor;
@@ -80,21 +113,70 @@ function drawHero(g, x, y, size, charDef, legPhase, sliding, faceRight, glow){
   g.restore();
 }
 
-/* ---------------- ENEMY RENDERING ---------------- */
-function drawEnemy(g, e, worldSkin){
+/* ---------------- ENEMY RENDERING ----------------
+   `e.kind` is the movement role (ground-hopper vs flyer); the
+   world's `enemyKind` picks the creature silhouette drawn on top,
+   so the same forest world never looks like the cyber city.       */
+function drawEnemy(g, e, worldSkin, enemyKind){
   g.save();
   g.translate(e.x, e.y);
-  if (e.kind === 'ground'){
-    g.fillStyle = worldSkin.ground;
+  const baseColor = e.kind==='ground' ? worldSkin.ground : worldSkin.flyer;
+  const flap = Math.sin(e.t*10)*6;
+
+  if (enemyKind === 'robot'){
+    g.fillStyle = baseColor;
+    roundRect(g, -e.w/2, -e.h/2, e.w, e.h, 4); g.fill();
+    g.strokeStyle='rgba(255,255,255,.5)'; g.lineWidth=1; g.strokeRect(-e.w/2+3,-e.h/2+3,e.w-6,e.h-6);
+    g.fillStyle = '#ff3d3d'; g.shadowColor='#ff3d3d'; g.shadowBlur=8;
+    g.beginPath(); g.arc(0,-2,3,0,Math.PI*2); g.fill(); g.shadowBlur=0;
+    g.strokeStyle = baseColor; g.lineWidth=2; g.beginPath(); g.moveTo(0,-e.h/2); g.lineTo(0,-e.h/2-6); g.stroke();
+  } else if (enemyKind === 'ghost'){
+    g.globalAlpha = 0.78;
+    g.fillStyle = baseColor;
+    const wob = Math.sin(e.t*6)*4;
+    g.beginPath();
+    g.moveTo(-e.w/2, 2);
+    g.quadraticCurveTo(-e.w/2, -e.h/2, 0, -e.h/2);
+    g.quadraticCurveTo(e.w/2, -e.h/2, e.w/2, 2);
+    for (let i=3;i>=0;i--){ g.lineTo(e.w/2 - i*(e.w/3), 2 + (i%2===0? wob:-wob)); }
+    g.closePath(); g.fill();
+    g.globalAlpha = 1;
+    eyesFace(g, -5,-4, 5,-4);
+  } else if (enemyKind === 'fireMonster'){
+    g.fillStyle = baseColor;
     g.beginPath(); g.arc(0,0,e.w/2,0,Math.PI*2); g.fill();
-    eyesFace(g, -6,-4, 6,-4);
-  } else if (e.kind === 'flyer'){
-    g.fillStyle = worldSkin.flyer;
-    roundRect(g, -e.w/2, -e.h/2, e.w, e.h, 10); g.fill();
-    g.fillStyle = 'rgba(255,255,255,.6)';
-    const flap = Math.sin(e.t*10)*6;
-    g.beginPath(); g.ellipse(-e.w/2-6, flap, 10, 5, 0.3, 0, Math.PI*2); g.fill();
-    g.beginPath(); g.ellipse(e.w/2+6, -flap, 10, 5, -0.3, 0, Math.PI*2); g.fill();
+    g.fillStyle = 'rgba(255,180,80,.8)';
+    for (let i=0;i<3;i++){
+      const a = -Math.PI/2 + (i-1)*0.5;
+      const flick = Math.sin(e.t*8+i)*3;
+      g.beginPath();
+      g.moveTo(Math.cos(a)*e.w*0.3, Math.sin(a)*e.w*0.3);
+      g.lineTo(Math.cos(a)*e.w*0.7+flick, Math.sin(a)*e.w*0.7-8);
+      g.lineTo(Math.cos(a)*e.w*0.5, Math.sin(a)*e.w*0.5);
+      g.closePath(); g.fill();
+    }
+    eyesFace(g, -5,-2, 5,-2);
+  } else if (enemyKind === 'dragon'){
+    g.fillStyle = baseColor;
+    roundRect(g, -e.w/2, -e.h/2, e.w*0.8, e.h*0.8, 8); g.fill();
+    g.beginPath(); g.moveTo(e.w*0.3,0); g.lineTo(e.w*0.7,-6); g.lineTo(e.w*0.7,6); g.closePath(); g.fill(); // tail
+    g.fillStyle = 'rgba(255,255,255,.55)';
+    g.beginPath(); g.ellipse(-e.w/2-4, flap*0.6, 9, 4, 0.3, 0, Math.PI*2); g.fill();
+    g.beginPath(); g.ellipse(e.w/2-2, -flap*0.6, 9, 4, -0.3, 0, Math.PI*2); g.fill();
+    eyesFace(g, -3,-2, 3,-2);
+  } else {
+    // bird (default): the original flapping-wing critter
+    if (e.kind === 'ground'){
+      g.fillStyle = baseColor;
+      g.beginPath(); g.arc(0,0,e.w/2,0,Math.PI*2); g.fill();
+      eyesFace(g, -6,-4, 6,-4);
+    } else {
+      g.fillStyle = baseColor;
+      roundRect(g, -e.w/2, -e.h/2, e.w, e.h, 10); g.fill();
+      g.fillStyle = 'rgba(255,255,255,.6)';
+      g.beginPath(); g.ellipse(-e.w/2-6, flap, 10, 5, 0.3, 0, Math.PI*2); g.fill();
+      g.beginPath(); g.ellipse(e.w/2+6, -flap, 10, 5, -0.3, 0, Math.PI*2); g.fill();
+    }
   }
   g.restore();
 }
@@ -134,18 +216,36 @@ function drawBoss(g, boss){
 }
 
 /* ---------------- PET / COMPANION RENDERING ---------------- */
-function drawPet(g, x, y, t, color){
+function drawPet(g, x, y, t, color, kind, attackFlash){
   g.save();
   g.translate(x, y + Math.sin(t*4)*4);
-  g.shadowColor = color; g.shadowBlur = 12;
-  g.fillStyle = color;
-  g.beginPath(); g.arc(0,0,10,0,Math.PI*2); g.fill();
+  g.shadowColor = color; g.shadowBlur = attackFlash>0 ? 20 : 12;
+  g.fillStyle = attackFlash>0 ? '#fff' : color;
+
+  if (kind==='robot'){
+    roundRect(g,-9,-8,18,16,4); g.fill();
+    g.strokeStyle='rgba(0,0,0,.3)'; g.lineWidth=1; g.strokeRect(-6,-5,12,10);
+    g.fillStyle='#233047'; g.beginPath(); g.arc(0,-10,1.6,0,Math.PI*2); g.fill();
+  } else if (kind==='fairy'){
+    g.beginPath(); g.arc(0,0,6,0,Math.PI*2); g.fill();
+    const flap = Math.sin(t*18)*6;
+    g.fillStyle='rgba(255,255,255,.6)';
+    g.beginPath(); g.ellipse(-8,flap,7,3,0.5,0,Math.PI*2); g.fill();
+    g.beginPath(); g.ellipse(8,-flap,7,3,-0.5,0,Math.PI*2); g.fill();
+  } else if (kind==='phoenix'){
+    g.beginPath(); g.arc(0,0,9,0,Math.PI*2); g.fill();
+    g.fillStyle='rgba(255,150,60,.7)';
+    const flick = Math.sin(t*10)*3;
+    g.beginPath(); g.moveTo(-6,4); g.lineTo(-2,14+flick); g.lineTo(2,4); g.closePath(); g.fill();
+  } else {
+    // dragon (default starter): rounded body + tiny wings + tail
+    g.beginPath(); g.arc(0,0,10,0,Math.PI*2); g.fill();
+    const flap = Math.sin(t*14)*5;
+    g.fillStyle = 'rgba(255,255,255,.7)';
+    g.beginPath(); g.ellipse(-9, flap, 6, 3, 0.4, 0, Math.PI*2); g.fill();
+    g.beginPath(); g.ellipse(9, -flap, 6, 3, -0.4, 0, Math.PI*2); g.fill();
+  }
   g.shadowBlur = 0;
-  // tiny wings
-  const flap = Math.sin(t*14)*5;
-  g.fillStyle = 'rgba(255,255,255,.7)';
-  g.beginPath(); g.ellipse(-9, flap, 6, 3, 0.4, 0, Math.PI*2); g.fill();
-  g.beginPath(); g.ellipse(9, -flap, 6, 3, -0.4, 0, Math.PI*2); g.fill();
   g.fillStyle = '#233047';
   g.beginPath(); g.arc(3,-2,1.6,0,Math.PI*2); g.fill();
   g.restore();

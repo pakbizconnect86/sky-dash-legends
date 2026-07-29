@@ -167,6 +167,7 @@ function launchRun(mode, worldId, stage){
   document.getElementById('hudTimerPill').classList.toggle('hidden', mode!=='timeTrial');
   startRun(mode, worldId, stage);
   document.getElementById('touchHint').classList.remove('hidden');
+  document.getElementById('dashBtn').classList.remove('hidden');
   showStageBanner(stage ? stage.name : GAME_MODES.find(m=>m.id===mode).name);
 }
 function showStageBanner(text){
@@ -263,6 +264,7 @@ onRunFinished = function(won){
   document.getElementById('hud').classList.add('hidden');
   document.getElementById('bossHpWrap').classList.add('hidden');
   document.getElementById('touchHint').classList.add('hidden');
+  document.getElementById('dashBtn').classList.add('hidden');
   document.getElementById('reviveOverlay').classList.add('hidden');
   document.getElementById('countdownOverlay').classList.add('hidden');
 
@@ -331,7 +333,28 @@ function renderShop(){
   if (shopTab === 'heroes') renderShopHeroes(list);
   else if (shopTab === 'skins') renderShopSkins(list);
   else if (shopTab === 'pets') renderShopPets(list);
+  else if (shopTab === 'power') renderShopPower(list);
   else renderShopUpgrades(list);
+}
+function renderShopPower(list){
+  list.innerHTML = POWER_SHOP_ITEMS.map(item=>{
+    const def = POWERUP_DEFS[item.kind];
+    const owned = SAVE.startingPowerupCharges[item.kind] || 0;
+    return `<div class="char-card">
+      <div class="char-avatar" style="background:radial-gradient(circle at 35% 30%, #fff, ${def.color});border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:20px;">${def.icon}</div>
+      <div class="char-info"><div class="char-name">${def.name}</div><div class="char-desc">Start your next run with this active. Owned: ${owned}</div></div>
+      <div class="char-action"><button class="btn btn-primary btn-small display-font" data-buypower="${item.kind}" ${SAVE.coins<item.cost?'disabled':''}>${item.cost}🪙</button></div>
+    </div>`;
+  }).join('');
+  list.querySelectorAll('[data-buypower]').forEach(btn=>btn.addEventListener('click', ()=>{
+    const kind = btn.getAttribute('data-buypower');
+    const item = POWER_SHOP_ITEMS.find(x=>x.kind===kind);
+    if (SAVE.coins >= item.cost){
+      SAVE.coins -= item.cost;
+      SAVE.startingPowerupCharges[kind] = (SAVE.startingPowerupCharges[kind]||0) + 1;
+      AudioSys.reward(); persist(); renderShop(); refreshCurrencyLabels();
+    }
+  }));
 }
 function renderShopPets(list){
   list.innerHTML = PET_DEFS.map(pet=>{
@@ -717,6 +740,8 @@ function refreshSettingsUI(){
   document.getElementById('sfxSwitch').classList.toggle('on', SAVE.settings.sfxOn);
   document.getElementById('musicSwitch').classList.toggle('on', SAVE.settings.musicOn);
   document.getElementById('shakeSwitch').classList.toggle('on', SAVE.settings.screenShake);
+  document.getElementById('vibrationSwitch').classList.toggle('on', SAVE.settings.vibration);
+  document.getElementById('fpsSwitch').classList.toggle('on', SAVE.settings.showFps);
   document.getElementById('sfxSlider').value = Math.round(SAVE.settings.sfxVolume*100);
   document.getElementById('musicSlider').value = Math.round(SAVE.settings.musicVolume*100);
   document.getElementById('qualitySelect').value = SAVE.settings.quality;
@@ -725,6 +750,8 @@ function refreshSettingsUI(){
 document.getElementById('sfxSwitch').addEventListener('click', ()=>{ SAVE.settings.sfxOn=!SAVE.settings.sfxOn; persist(); refreshSettingsUI(); if(SAVE.settings.sfxOn) AudioSys.click(); });
 document.getElementById('musicSwitch').addEventListener('click', ()=>{ SAVE.settings.musicOn=!SAVE.settings.musicOn; persist(); refreshSettingsUI(); AudioSys.refreshVolume(); });
 document.getElementById('shakeSwitch').addEventListener('click', ()=>{ SAVE.settings.screenShake=!SAVE.settings.screenShake; persist(); refreshSettingsUI(); });
+document.getElementById('vibrationSwitch').addEventListener('click', ()=>{ SAVE.settings.vibration=!SAVE.settings.vibration; persist(); refreshSettingsUI(); if (SAVE.settings.vibration && navigator.vibrate) navigator.vibrate(20); });
+document.getElementById('fpsSwitch').addEventListener('click', ()=>{ SAVE.settings.showFps=!SAVE.settings.showFps; persist(); refreshSettingsUI(); });
 document.getElementById('sfxSlider').addEventListener('input', e=>{ SAVE.settings.sfxVolume = e.target.value/100; persist(); });
 document.getElementById('musicSlider').addEventListener('input', e=>{ SAVE.settings.musicVolume = e.target.value/100; persist(); AudioSys.refreshVolume(); });
 document.getElementById('qualitySelect').addEventListener('change', e=>{ SAVE.settings.quality = e.target.value; persist(); });

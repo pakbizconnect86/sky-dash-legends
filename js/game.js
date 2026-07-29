@@ -90,7 +90,8 @@ function startRun(mode, worldId, stage){
     legPhase: 0, charDef,
     hitInvuln: 0,
     hearts, maxHearts: hearts,
-    upSpeed, upMagnet, upCoin, upLuck
+    upSpeed, upMagnet, upCoin, upLuck,
+    dashT: 0, dashCD: 0
   };
   Game.pet = SAVE.selectedPet ? Object.assign({ t:0 }, PET_DEFS.find(p=>p.id===SAVE.selectedPet)) : null;
 
@@ -110,6 +111,16 @@ function startRun(mode, worldId, stage){
   Game.nextMiniBossDistance = MINI_BOSS_DISTANCE_INTERVAL;
 
   if (heroHasAbility('ember_start')) Game.activePowerups.speedBoost = 3;
+
+  // spend any Power Shop starter charges — each purchased charge grants
+  // that power-up active from the very first frame of this run
+  Object.keys(SAVE.startingPowerupCharges||{}).forEach(kind=>{
+    if (SAVE.startingPowerupCharges[kind] > 0 && POWERUP_DEFS[kind]){
+      SAVE.startingPowerupCharges[kind]--;
+      Game.activePowerups[kind] = Math.max(Game.activePowerups[kind]||0, POWERUP_DEFS[kind].duration * powerupDurationMult(kind));
+    }
+  });
+  persist();
 
   // Every run starts with a 3-2-1-GO countdown; the player is fully
   // positioned and idle-animating on the ground while it counts down,
@@ -182,6 +193,17 @@ function doSlide(){
   Game.player.sliding = true; Game.player.slideT = SLIDE_DURATION;
   AudioSys.slide();
 }
+function doDash(){
+  if (Game.state !== 'playing' && Game.state !== 'boss') return;
+  const p = Game.player;
+  if (p.dashCD > 0) return;
+  p.dashT = 0.22;
+  p.dashCD = 1.4;
+  p.hitInvuln = Math.max(p.hitInvuln, 0.22);
+  Game.camZoomTarget = Math.min(CAM_ZOOM_MAX, Game.camZoomTarget + 0.04);
+  Game.particles.spawn(p.x, p.y-30, '#ffffff', 8, { speed:[60,160], life:[0.2,0.35], gravity:0 });
+  AudioSys.dash();
+}
 
 /* ---------------- PHYSICS / COLLISION HELPERS ---------------- */
 function playerHitbox(){
@@ -217,6 +239,7 @@ function damagePlayer(amount){
   Game.combo = 0; Game.comboTimer = 0; // a hit always breaks the combo streak
   Game.particles.explosion(p.x, p.y-30, '#ff5470');
   AudioSys.hit();
+  if (typeof hapticPulse === 'function') hapticPulse(45);
   if (p.hearts <= 0){ offerReviveOrEnd(); }
 }
 
@@ -319,6 +342,8 @@ function updateGame(dt){
   }
 
   if (p.sliding){ p.slideT -= dt; if (p.slideT<=0) p.sliding = false; }
+  if (p.dashT > 0) p.dashT -= dt;
+  if (p.dashCD > 0) p.dashCD -= dt;
   p.legPhase += dt * (p.grounded ? 14 : 6);
   if (p.hitInvuln > 0) p.hitInvuln -= dt;
 
@@ -337,7 +362,8 @@ function updateGame(dt){
   });
 
   const freeze = Game.activePowerups.freezeTime > 0;
-  const curSpeed = (Game.speed * (Game.activePowerups.speedBoost>0 ? 1.4 : 1)) * (freeze ? 0.15 : 1);
+  const dashMult = p.dashT > 0 ? 1.7 : 1;
+  const curSpeed = (Game.speed * (Game.activePowerups.speedBoost>0 ? 1.4 : 1) * dashMult) * (freeze ? 0.15 : 1);
 
   Game.distance += curSpeed*dt;
   Game.distanceSinceHit += curSpeed*dt;
@@ -415,6 +441,8 @@ function updatePet(dt){
   if (!pet || !p) return;
   pet.t += dt;
   pet.x = p.x - 34; pet.y = p.y - 70;
+  if (pet.attackFlash > 0) pet.attackFlash -= dt;
+
   // passive auto-collect: any coin/gem within the pet's radius drifts in
   for (let i=Game.collectibles.length-1;i>=0;i--){
     const c = Game.collectibles[i];
@@ -423,6 +451,27 @@ function updatePet(dt){
     if (d < pet.radius){
       c.x += (pet.x-c.x)*Math.min(1,dt*5);
       c.y += (pet.y-c.y)*Math.min(1,dt*5);
+    }
+  }
+
+  // active combat: periodically zap the nearest enemy within range
+  pet.atkTimer = (pet.atkTimer||0) - dt;
+  if (pet.atkTimer <= 0){
+    let nearest = null, nearestD = Infinity;
+    for (const o of Game.obstacles){
+      if (!o.kind) continue; // only living enemies, not spikes/movers
+      const d = Math.hypot(pet.x-o.x, pet.y-o.y);
+      if (d < pet.radius && d < nearestD){ nearest = o; nearestD = d; }
+    }
+    if (nearest){
+      const idx = Game.obstacles.indexOf(nearest);
+      if (idx >= 0) Game.obstacles.splice(idx,1);
+      Game.particles.explosion(nearest.x, nearest.y, pet.color);
+      pet.attackFlash = 0.15;
+      AudioSys.bossHit();
+      pet.atkTimer = pet.atkCooldown;
+    } else {
+      pet.atkTimer = 0.3; // re-check soon rather than waiting a full cooldown
     }
   }
 }
@@ -453,11 +502,20 @@ function updateObstacles(dt, curSpeed){
       continue;
     }
     // near-miss: the obstacle just swept past the player's x position
-    // this frame without ever colliding — reward a small combo tick
+    // this frame without ever colliding — reward a combo tick, and a
+    // bigger "Perfect!" bonus if the clearance was razor-thin
     if (wasAhead && o.x < Game.player.x - 10 && !o._passed){
       o._passed = true;
-      gainCombo(1);
-      AudioSys.comboUp();
+      const gapY = Math.abs((pHitbox.y + pHitbox.h) - (o.y - (o.h||0)/2));
+      const perfect = gapY < 16;
+      gainCombo(perfect ? 2 : 1);
+      if (perfect){
+        SAVE.coins += 3; Game.coinsThisRun += 3; SAVE.totalCoinsCollected += 3;
+        Game.particles.sparkle(Game.player.x, Game.player.y-40, '#fff3b0');
+        AudioSys.comboUp(); AudioSys.comboUp();
+      } else {
+        AudioSys.comboUp();
+      }
     }
   }
 }
@@ -739,7 +797,9 @@ function renderGame(g){
 
   renderWorld(g, Game.worldRuntime, W, H, GROUND_Y, Game.speed, 1/60);
 
-  const worldSkin = WORLDS.find(w=>w.id===Game.worldId).obstacleSkin;
+  const worldDefForRender = WORLDS.find(w=>w.id===Game.worldId);
+  const worldSkin = worldDefForRender.obstacleSkin;
+  const enemyKind = worldDefForRender.enemyKind;
 
   Game.collectibles.forEach(c=>{
     g.save(); g.translate(c.x,c.y);
@@ -770,7 +830,7 @@ function renderGame(g){
   });
 
   Game.obstacles.forEach(o=>{
-    if (o.kind) drawEnemy(g, o, worldSkin); else drawObstacle(g, o, worldSkin);
+    if (o.kind) drawEnemy(g, o, worldSkin, enemyKind); else drawObstacle(g, o, worldSkin);
   });
 
   Game.projectiles.forEach(pr=>{
@@ -811,9 +871,18 @@ function renderGame(g){
       g.restore();
     }
     const glow = Game.activePowerups.invincible>0 || Game.activePowerups.rocket>0;
-    if (showHero) drawHero(g, p.x, p.y, 60, p.charDef, p.legPhase, p.sliding, true, glow);
+    const expr = (p.hitInvuln>0.4) ? 'hurt' : (Game.state==='victory' ? 'happy' : 'idle');
+    if (showHero) drawHero(g, p.x, p.y, 60, p.charDef, p.legPhase, p.sliding, true, glow, expr);
 
-    if (Game.pet) drawPet(g, Game.pet.x, Game.pet.y, Game.pet.t, Game.pet.color);
+    if (Game.pet) drawPet(g, Game.pet.x, Game.pet.y, Game.pet.t, Game.pet.color, Game.pet.kind, Game.pet.attackFlash||0);
+
+    // dash streak — a few quick motion lines behind the hero while dashing
+    if (Game.player.dashT > 0){
+      g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = 3;
+      for (let i=0;i<3;i++){
+        g.beginPath(); g.moveTo(p.x-20-i*10, p.y-20-i*4); g.lineTo(p.x-40-i*10, p.y-20-i*4); g.stroke();
+      }
+    }
   }
 
   if (Game.state === 'bossIntro'){

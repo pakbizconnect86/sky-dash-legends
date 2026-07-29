@@ -64,6 +64,7 @@ const AudioSys = (function(){
     secretChest(){ chord([659,880,1108], .35, .15); },
     countdownTick(){ blip(440, .12, 'square', .1); },
     countdownGo(){ chord([523,659,784], .3, .16); },
+    dash(){ blip(500, .12, 'sawtooth', .1, 900); },
 
     startMusic(scale, isBoss){
       currentScale = scale; bossMode = !!isBoss;
