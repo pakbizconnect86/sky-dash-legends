@@ -186,6 +186,20 @@ canvas{ display:block; touch-action:none; }
 #leftTouchZone, #rightTouchZone{ position:absolute; bottom:0; top:0; width:50%; z-index:4; }
 #leftTouchZone{ left:0; } #rightTouchZone{ right:0; }
 
+.dash-btn{
+  position:absolute; right:18px; bottom:max(90px, calc(90px + env(safe-area-inset-bottom)));
+  width:64px; height:64px; border-radius:50%; z-index:6;
+  background:radial-gradient(circle at 35% 30%, #fff3b0, #ff9a4d 65%, #c9520f);
+  color:#fff; font-family:'Baloo 2'; font-weight:800; font-size:12px; border:none;
+  box-shadow:var(--shadow), 0 0 18px rgba(255,154,77,.6);
+}
+.dash-btn:active{ transform:scale(.9); }
+.fps-counter{
+  position:absolute; top:calc(env(safe-area-inset-top) + 4px); left:50%; transform:translateX(-50%);
+  z-index:20; background:rgba(0,0,0,.55); color:#7be0b8; font-family:'Baloo 2'; font-weight:700;
+  font-size:11px; padding:3px 8px; border-radius:8px; pointer-events:none;
+}
+
 ::-webkit-scrollbar{ width:6px; }
 ::-webkit-scrollbar-thumb{ background:#c3cede; border-radius:4px; }
 
