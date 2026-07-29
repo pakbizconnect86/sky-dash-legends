@@ -770,6 +770,8 @@ document.getElementById('leaderboardBtn').addEventListener('click', ()=>{ AudioS
 document.getElementById('settingsBtn').addEventListener('click', ()=>{ AudioSys.click(); refreshSettingsUI(); showScreen('settingsScreen'); });
 document.getElementById('profileBtn').addEventListener('click', ()=>{ AudioSys.click(); renderProfile(); showScreen('profileScreen'); });
 
+document.getElementById('downloadAppBtn').addEventListener('click', ()=>{ AudioSys.click(); });
+
 document.getElementById('modeBackBtn').addEventListener('click', ()=>{ AudioSys.click(); showScreen('menuScreen'); refreshCurrencyLabels(); });
 document.getElementById('worldBackBtn').addEventListener('click', ()=>{ AudioSys.click(); showScreen('modeScreen'); });
 document.getElementById('storyBackBtn').addEventListener('click', ()=>{ AudioSys.click(); showScreen('modeScreen'); });
