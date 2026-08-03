@@ -104,9 +104,9 @@ function startRun(mode, worldId, stage, resumeDistance){
 
   Game.obstacles = []; Game.collectibles = []; Game.projectiles = [];
   Game.boss = null;
+  const startDistance = resumeDistance || 0;
   Game.speed = (320 + upSpeed*8) * (heroHasAbility_static(charDef,'all_rounder') ? 1.1 : 1);
   Game.speed = Math.min(800, Game.speed + startDistance*0.03); // ramp to match checkpoint progress
-  const startDistance = resumeDistance || 0;
   Game.distance = startDistance; Game.score = 0;
   Game.checkpointDistance = startDistance;
   Game.coinsThisRun = 0; Game.gemsThisRun = 0; Game.powerupsUsedThisRun = 0;
