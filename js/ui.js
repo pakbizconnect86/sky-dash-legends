@@ -161,14 +161,19 @@ function renderStoryList(){
 }
 
 /* ---------------- LAUNCH / HUD / RUN LIFECYCLE WIRING ---------------- */
-function launchRun(mode, worldId, stage){
+function launchRun(mode, worldId, stage, resumeDistance){
   showScreen(null);
+  if (typeof screenshotMode !== 'undefined' && screenshotMode){
+    screenshotMode = false;
+    SCREENSHOT_HIDE_IDS.forEach(id=>{ const el = document.getElementById(id); if (el) el.classList.remove('screenshot-hidden'); });
+    document.getElementById('screenshotBtn').textContent = '📷';
+  }
   document.getElementById('hud').classList.remove('hidden');
   document.getElementById('hudTimerPill').classList.toggle('hidden', mode!=='timeTrial');
-  startRun(mode, worldId, stage);
+  startRun(mode, worldId, stage, resumeDistance);
   document.getElementById('touchHint').classList.remove('hidden');
   document.getElementById('dashBtn').classList.remove('hidden');
-  showStageBanner(stage ? stage.name : GAME_MODES.find(m=>m.id===mode).name);
+  showStageBanner(resumeDistance > 0 ? 'CHECKPOINT!' : (stage ? stage.name : GAME_MODES.find(m=>m.id===mode).name));
 }
 function showStageBanner(text){
   const el = document.getElementById('stageBanner');
@@ -281,9 +286,36 @@ onRunFinished = function(won){
   showScreen('gameOverScreen');
 
   // remember whether "retry" should replay the same story stage or config
-  lastRunConfig = { mode:Game.mode, worldId:Game.worldId, stage:Game.stage };
+  lastRunConfig = { mode:Game.mode, worldId:Game.worldId, stage:Game.stage,
+    resumeDistance: (Game.mode==='story' && Game.stage && Game.stage.type==='distance') ? Game.checkpointDistance : 0 };
 };
 let lastRunConfig = null;
+
+/* ---------------- SCREENSHOT MODE ---------------- */
+let screenshotMode = false;
+const SCREENSHOT_HIDE_IDS = ['hud','powerupRow','bossHpWrap','touchHint','dashBtn','stageBanner'];
+document.getElementById('screenshotBtn').addEventListener('click', ()=>{
+  screenshotMode = !screenshotMode;
+  SCREENSHOT_HIDE_IDS.forEach(id=>{
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('screenshot-hidden', screenshotMode);
+  });
+  document.getElementById('screenshotBtn').textContent = screenshotMode ? '👁' : '📷';
+  AudioSys.click();
+});
+
+/* ---------------- SHARE SCORE ---------------- */
+document.getElementById('shareScoreBtn').addEventListener('click', async ()=>{
+  const score = document.getElementById('goScore').textContent;
+  const text = `I just scored ${score} in Sky Dash: Legends! 🏃💨 Can you beat it?`;
+  if (navigator.share){
+    try{ await navigator.share({ title:'Sky Dash: Legends', text }); }catch(e){ /* user cancelled — fine */ }
+  } else if (navigator.clipboard){
+    try{ await navigator.clipboard.writeText(text); alert('Score copied to clipboard!'); }catch(e){ alert(text); }
+  } else {
+    alert(text);
+  }
+});
 
 document.getElementById('retryBtn').addEventListener('click', ()=>{
   AudioSys.click();
@@ -291,7 +323,7 @@ document.getElementById('retryBtn').addEventListener('click', ()=>{
   regenEnergy();
   if (SAVE.energy < 1){ alert(t('energyEmpty')); showScreen('menuScreen'); refreshCurrencyLabels(); return; }
   SAVE.energy -= 1; persist();
-  launchRun(lastRunConfig.mode, lastRunConfig.worldId, lastRunConfig.stage);
+  launchRun(lastRunConfig.mode, lastRunConfig.worldId, lastRunConfig.stage, lastRunConfig.resumeDistance);
 });
 document.getElementById('goMenuBtn').addEventListener('click', ()=>{
   AudioSys.click();
@@ -364,9 +396,10 @@ function renderShopPets(list){
     if (selected) action = `<button class="btn btn-ghost btn-small display-font" disabled>${t('selected')}</button>`;
     else if (owned) action = `<button class="btn btn-secondary btn-small display-font" data-selpet="${pet.id}">${t('select')}</button>`;
     else action = `<button class="btn btn-primary btn-small display-font" data-buypet="${pet.id}" ${SAVE.gems<pet.cost?'disabled':''}>${pet.cost}💎</button>`;
+    const lvlTag = owned ? `<span class="rarity-tag" style="color:#3fbf8f;border-color:#3fbf8f;">Lv.${petLevel(pet.id)} ${petEvolutionStage(pet.id)}</span>` : '';
     return `<div class="char-card ${selected?'selected':''}">
       <div class="char-avatar" style="background:radial-gradient(circle at 35% 30%, #fff, ${pet.color});border-radius:50%;"></div>
-      <div class="char-info"><div class="char-name">${pet.name}</div><div class="char-desc">${pet.desc}</div></div>
+      <div class="char-info"><div class="char-name">${pet.name} ${lvlTag}</div><div class="char-desc">${pet.desc}</div></div>
       <div class="char-action">${action}</div>
     </div>`;
   }).join('');
@@ -382,13 +415,17 @@ function renderShopHeroes(list){
   list.innerHTML = CHARACTERS.map(c=>{
     const owned = SAVE.unlockedHeroes.includes(c.id);
     const selected = SAVE.selectedHero === c.id;
+    const rarity = RARITY_INFO[c.rarity] || RARITY_INFO.common;
     let action;
     if (selected) action = `<button class="btn btn-ghost btn-small display-font" disabled>${t('selected')}</button>`;
     else if (owned) action = `<button class="btn btn-secondary btn-small display-font" data-select="${c.id}">${t('select')}</button>`;
     else action = `<button class="btn btn-primary btn-small display-font" data-buy="${c.id}" ${SAVE.gems<c.cost?'disabled':''}>${c.cost}💎</button>`;
     return `<div class="char-card ${selected?'selected':''}">
       <div class="char-avatar" style="background:linear-gradient(160deg, ${c.body}, ${c.accent});border-radius:14px;"></div>
-      <div class="char-info"><div class="char-name">${c.name}</div><div class="char-desc">${c.abilityDesc}</div></div>
+      <div class="char-info">
+        <div class="char-name">${c.name} <span class="rarity-tag" style="color:${rarity.color};border-color:${rarity.color};">${rarity.label}</span></div>
+        <div class="char-desc">${c.abilityDesc}</div>
+      </div>
       <div class="char-action">${action}</div>
     </div>`;
   }).join('');
@@ -636,7 +673,9 @@ document.getElementById('claimDailyBtn').addEventListener('click', ()=>{
   const yesterday = new Date(Date.now()-86400000).toDateString();
   if (SAVE.lastDailyClaim === yesterday) SAVE.dailyStreak++; else SAVE.dailyStreak = 0;
   const dayIdx = SAVE.dailyStreak % 7;
-  const reward = 20 + dayIdx*10;
+  const heroDef = CHARACTERS.find(c=>c.id===SAVE.selectedHero);
+  const streakMult = (heroDef && heroDef.ability==='streak_plus') ? 1.25 : 1;
+  const reward = Math.round((20 + dayIdx*10) * streakMult);
   SAVE.coins += reward;
   if (dayIdx === 6) SAVE.chests++; // full week streak bonus chest
   SAVE.lastDailyClaim = today;
@@ -746,12 +785,14 @@ function refreshSettingsUI(){
   document.getElementById('musicSlider').value = Math.round(SAVE.settings.musicVolume*100);
   document.getElementById('qualitySelect').value = SAVE.settings.quality;
   document.getElementById('langSelect').value = SAVE.settings.language;
+  document.getElementById('fpsCapSelect').value = String(SAVE.settings.fpsCap);
 }
 document.getElementById('sfxSwitch').addEventListener('click', ()=>{ SAVE.settings.sfxOn=!SAVE.settings.sfxOn; persist(); refreshSettingsUI(); if(SAVE.settings.sfxOn) AudioSys.click(); });
 document.getElementById('musicSwitch').addEventListener('click', ()=>{ SAVE.settings.musicOn=!SAVE.settings.musicOn; persist(); refreshSettingsUI(); AudioSys.refreshVolume(); });
 document.getElementById('shakeSwitch').addEventListener('click', ()=>{ SAVE.settings.screenShake=!SAVE.settings.screenShake; persist(); refreshSettingsUI(); });
 document.getElementById('vibrationSwitch').addEventListener('click', ()=>{ SAVE.settings.vibration=!SAVE.settings.vibration; persist(); refreshSettingsUI(); if (SAVE.settings.vibration && navigator.vibrate) navigator.vibrate(20); });
 document.getElementById('fpsSwitch').addEventListener('click', ()=>{ SAVE.settings.showFps=!SAVE.settings.showFps; persist(); refreshSettingsUI(); });
+document.getElementById('fpsCapSelect').addEventListener('change', e=>{ SAVE.settings.fpsCap = parseInt(e.target.value,10); persist(); });
 document.getElementById('sfxSlider').addEventListener('input', e=>{ SAVE.settings.sfxVolume = e.target.value/100; persist(); });
 document.getElementById('musicSlider').addEventListener('input', e=>{ SAVE.settings.musicVolume = e.target.value/100; persist(); AudioSys.refreshVolume(); });
 document.getElementById('qualitySelect').addEventListener('change', e=>{ SAVE.settings.quality = e.target.value; persist(); });

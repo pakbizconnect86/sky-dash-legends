@@ -84,17 +84,70 @@ function pollGamepad(){
 let gpPauseLatch = false, gpDashLatch = false;
 
 /* ---------------- CINEMATIC INTRO ---------------- */
+const LOADING_TIPS = [
+  'Tip: Near-miss an obstacle for a combo bonus!',
+  'Tip: A tight clearance triggers a Perfect Jump — extra coins!',
+  'Tip: Pets auto-collect coins AND zap nearby enemies.',
+  'Tip: Dash gives a few frames of invulnerability — use it to punch through danger.',
+  'Tip: Coin-revive only works once per run, so save it for real emergencies.',
+  'Tip: Story Mode checkpoints save your progress mid-stage.',
+  'Tip: Higher hero rarity usually means a stronger passive ability.',
+  'Tip: Low Graphics Quality in Settings helps older phones run smoother.'
+];
+
 function playIntro(){
   const intro = document.getElementById('introScreen');
+  const studioLogo = document.getElementById('studioLogo');
+  const loadingWrap = document.getElementById('loadingWrap');
+  const loadingBar = document.getElementById('loadingBarFill');
+  const loadingTip = document.getElementById('loadingTip');
+  const introLogo = document.getElementById('introLogo');
+  const introSub = document.getElementById('introSub');
   const skipBtn = document.getElementById('introSkipBtn');
-  setTimeout(()=> skipBtn.classList.remove('hidden'), 1400);
+  skipBtn.classList.remove('hidden');
+
+  let finished = false;
+  let tipTimer = null, barTimer = null;
+
   function finish(){
+    if (finished) return;
+    finished = true;
+    if (tipTimer) clearInterval(tipTimer);
+    if (barTimer) clearInterval(barTimer);
     intro.style.transition = 'opacity .5s ease';
     intro.style.opacity = '0';
     setTimeout(()=>{ intro.classList.add('hidden'); enterMenu(); }, 500);
   }
   skipBtn.addEventListener('click', finish);
-  setTimeout(finish, 3200);
+
+  // Phase 1: studio logo card
+  setTimeout(()=>{
+    if (finished) return;
+    studioLogo.classList.add('hidden');
+    loadingWrap.classList.remove('hidden');
+
+    // Phase 2: loading bar + rotating tips (purely cosmetic — everything
+    // is already loaded by this point, this just sets the mood)
+    let tipIdx = 0;
+    loadingTip.textContent = LOADING_TIPS[0];
+    tipTimer = setInterval(()=>{ tipIdx = (tipIdx+1) % LOADING_TIPS.length; loadingTip.textContent = LOADING_TIPS[tipIdx]; }, 900);
+    let pct = 0;
+    barTimer = setInterval(()=>{
+      pct = Math.min(100, pct + 8 + Math.random()*10);
+      loadingBar.style.width = pct + '%';
+      if (pct >= 100) clearInterval(barTimer);
+    }, 140);
+
+    // Phase 3: cinematic title
+    setTimeout(()=>{
+      if (finished) return;
+      loadingWrap.classList.add('hidden');
+      introLogo.classList.remove('hidden');
+      introSub.classList.remove('hidden');
+    }, 1900);
+  }, 1300);
+
+  setTimeout(finish, 4600);
 }
 function enterMenu(){
   showScreen('menuScreen');
@@ -105,11 +158,24 @@ function enterMenu(){
 /* ---------------- MAIN LOOP ---------------- */
 let lastT = 0;
 let fpsAccum = 0, fpsFrames = 0, fpsTimer = 0;
+let stepAccum = 0;
 function loop(t){
   if (!lastT) lastT = t;
   let dt = (t-lastT)/1000;
   dt = Math.min(dt, 0.033);
   lastT = t;
+
+  // Frame-rate cap: at 30fps we still render every rAF tick (so the
+  // browser compositor stays smooth), but only step the simulation
+  // every other tick, which halves CPU/GPU work for battery saving.
+  const targetStep = 1 / (SAVE.settings.fpsCap || 60);
+  stepAccum += dt;
+  let shouldStep = false, stepDt = dt;
+  if (stepAccum >= targetStep){
+    shouldStep = true;
+    stepDt = stepAccum;
+    stepAccum = 0;
+  }
 
   if (SAVE.settings.showFps){
     fpsFrames++; fpsTimer += dt;
@@ -127,8 +193,8 @@ function loop(t){
   pollGamepad();
   updateCountdownUI();
 
-  if (Game.state==='playing' || Game.state==='boss' || Game.state==='bossIntro' || Game.state==='countdown'){
-    updateGame(dt);
+  if (shouldStep && (Game.state==='playing' || Game.state==='boss' || Game.state==='bossIntro' || Game.state==='countdown')){
+    updateGame(stepDt);
     updateHud();
   }
   ctx.clearRect(0,0,VIEW.W,VIEW.H);

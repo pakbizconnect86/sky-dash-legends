@@ -36,7 +36,11 @@ let Game = {
   countdownT: 0,
   combo: 0, comboTimer: 0, bestComboThisRun: 0,
   reviveUsed: false,
-  nextMiniBossDistance: 0
+  nextMiniBossDistance: 0,
+
+  runElapsed: 0,
+  ghostSamples: [], ghostSampleTimer: 0,
+  ghostPlayback: null // { samples, idx } — best-run echo, Endless mode only
 };
 
 const CAM_ZOOM_MIN = 0.85, CAM_ZOOM_MAX = 1.35;
@@ -53,20 +57,23 @@ function powerupDurationMult(kind){
   if (kind==='freezeTime' && heroHasAbility('freeze_plus')) return 1.5;
   return 1;
 }
-function magnetRadius(){ return heroHasAbility('magnet_plus') ? 260 : 170; }
+function magnetRadius(){ return heroHasAbility('magnet_plus') ? 260 : (heroHasAbility('all_rounder') ? 187 : 170); }
 function reviveCost(){ return Math.round(REVIVE_BASE_COST * (heroHasAbility('revive_discount') ? 0.7 : 1)); }
 function comboGainMult(){ return heroHasAbility('combo_plus') ? 1.25 : 1; }
 function hitInvulnDuration(){ return heroHasAbility('invuln_plus') ? 1.3 : 0.9; }
-function coinAbilityBonus(){ return heroHasAbility('coin_plus') ? 0.2 : 0; }
-function gemAbilityBonus(){ return heroHasAbility('gem_plus') ? 0.2 : 0; }
+function coinAbilityBonus(){ return heroHasAbility('coin_plus') ? 0.2 : (isAllRounder() ? 0.1 : 0); }
+function gemAbilityBonus(){ return heroHasAbility('gem_plus') ? 0.2 : (isAllRounder() ? 0.1 : 0); }
 function powerupLuckBonus(){
   let bonus = heroHasAbility('powerup_plus') ? 0.06 : 0;
   if (Game.player) bonus += (Game.player.upLuck||0) * 0.02;
   return bonus;
 }
+function dashCooldownMult(){ return heroHasAbility('dash_plus') ? 0.7 : 1; }
+function checkpointInterval(){ return heroHasAbility('checkpoint_plus') ? 255 : 300; }
+function isAllRounder(){ return heroHasAbility('all_rounder'); }
 
 /* ---------------- RUN SETUP ---------------- */
-function startRun(mode, worldId, stage){
+function startRun(mode, worldId, stage, resumeDistance){
   Game.mode = mode;
   Game.worldId = worldId;
   Game.stage = stage || null;
@@ -97,8 +104,11 @@ function startRun(mode, worldId, stage){
 
   Game.obstacles = []; Game.collectibles = []; Game.projectiles = [];
   Game.boss = null;
-  Game.speed = 320 + upSpeed*8;
-  Game.distance = 0; Game.score = 0;
+  Game.speed = (320 + upSpeed*8) * (heroHasAbility_static(charDef,'all_rounder') ? 1.1 : 1);
+  Game.speed = Math.min(800, Game.speed + startDistance*0.03); // ramp to match checkpoint progress
+  const startDistance = resumeDistance || 0;
+  Game.distance = startDistance; Game.score = 0;
+  Game.checkpointDistance = startDistance;
   Game.coinsThisRun = 0; Game.gemsThisRun = 0; Game.powerupsUsedThisRun = 0;
   Game.hitThisRun = false; Game.distanceSinceHit = 0;
   Game.timeLeft = 60;
@@ -109,6 +119,10 @@ function startRun(mode, worldId, stage){
   Game.combo = 0; Game.comboTimer = 0; Game.bestComboThisRun = 0;
   Game.reviveUsed = false;
   Game.nextMiniBossDistance = MINI_BOSS_DISTANCE_INTERVAL;
+  Game.runElapsed = 0;
+  Game.ghostSamples = []; Game.ghostSampleTimer = 0;
+  Game.ghostPlayback = (mode==='endless' && SAVE.ghostReplay && SAVE.ghostReplay.samples && SAVE.ghostReplay.samples.length)
+    ? { samples: SAVE.ghostReplay.samples, idx: 0 } : null;
 
   if (heroHasAbility('ember_start')) Game.activePowerups.speedBoost = 3;
 
@@ -198,7 +212,7 @@ function doDash(){
   const p = Game.player;
   if (p.dashCD > 0) return;
   p.dashT = 0.22;
-  p.dashCD = 1.4;
+  p.dashCD = 1.4 * dashCooldownMult();
   p.hitInvuln = Math.max(p.hitInvuln, 0.22);
   Game.camZoomTarget = Math.min(CAM_ZOOM_MAX, Game.camZoomTarget + 0.04);
   Game.particles.spawn(p.x, p.y-30, '#ffffff', 8, { speed:[60,160], life:[0.2,0.35], gravity:0 });
@@ -367,6 +381,7 @@ function updateGame(dt){
 
   Game.distance += curSpeed*dt;
   Game.distanceSinceHit += curSpeed*dt;
+  Game.runElapsed += dt;
 
   // combo decays back to 0 if nothing near-missed or was collected for a
   // couple of seconds; while active it multiplies score gain
@@ -411,6 +426,7 @@ function updateGame(dt){
   updateCollectibles(dt, curSpeed);
   updateProjectiles(dt);
   updatePet(dt);
+  updateGhost(dt);
   Game.particles.update(dt);
 
   // ambient world particles (fire embers in volcano-esque, dust in desert) — light touch, cheap
@@ -421,6 +437,15 @@ function updateGame(dt){
   // story distance-stage completion check
   if (Game.mode==='story' && Game.stage.type==='distance' && Game.distance >= Game.stage.target){
     finishStoryDistanceStage();
+  }
+
+  // checkpoint tracking (Story mode only) — dying after this point resumes
+  // from here on Retry instead of restarting the whole stage from zero
+  if (Game.mode==='story' && Game.stage && Game.stage.type==='distance'){
+    const interval = checkpointInterval();
+    if (Game.distance - Game.checkpointDistance >= interval){
+      Game.checkpointDistance = Math.floor(Game.distance/interval)*interval;
+    }
   }
 }
 
@@ -436,19 +461,41 @@ function gainCombo(amount){
   SAVE.bestCombo = Math.max(SAVE.bestCombo||0, Game.bestComboThisRun);
 }
 
+/* ---------------- GHOST REPLAY (Endless mode only) ----------------
+   Records the player's y-position and slide state over time so the
+   best-ever Endless run can be played back as a translucent echo on
+   future runs — a lightweight "race your best" feature with no
+   server/backend needed.                                            */
+function updateGhost(dt){
+  if (Game.mode !== 'endless') return;
+  Game.ghostSampleTimer -= dt;
+  if (Game.ghostSampleTimer <= 0){
+    Game.ghostSampleTimer = 0.08;
+    if (Game.ghostSamples.length < 3000){
+      Game.ghostSamples.push({ t: Game.runElapsed, y: Game.player.y, sliding: Game.player.sliding });
+    }
+  }
+  const gp = Game.ghostPlayback;
+  if (gp && gp.samples.length){
+    while (gp.idx < gp.samples.length-1 && gp.samples[gp.idx+1].t <= Game.runElapsed) gp.idx++;
+  }
+}
+
 function updatePet(dt){
   const pet = Game.pet, p = Game.player;
   if (!pet || !p) return;
   pet.t += dt;
   pet.x = p.x - 34; pet.y = p.y - 70;
   if (pet.attackFlash > 0) pet.attackFlash -= dt;
+  const evoMult = petEvolutionMult(pet.id);
+  const effRadius = pet.radius * evoMult;
 
   // passive auto-collect: any coin/gem within the pet's radius drifts in
   for (let i=Game.collectibles.length-1;i>=0;i--){
     const c = Game.collectibles[i];
     if (c.type!=='coin' && c.type!=='gem') continue;
     const d = Math.hypot(pet.x-c.x, pet.y-c.y);
-    if (d < pet.radius){
+    if (d < effRadius){
       c.x += (pet.x-c.x)*Math.min(1,dt*5);
       c.y += (pet.y-c.y)*Math.min(1,dt*5);
     }
@@ -461,7 +508,7 @@ function updatePet(dt){
     for (const o of Game.obstacles){
       if (!o.kind) continue; // only living enemies, not spikes/movers
       const d = Math.hypot(pet.x-o.x, pet.y-o.y);
-      if (d < pet.radius && d < nearestD){ nearest = o; nearestD = d; }
+      if (d < effRadius && d < nearestD){ nearest = o; nearestD = d; }
     }
     if (nearest){
       const idx = Game.obstacles.indexOf(nearest);
@@ -469,7 +516,7 @@ function updatePet(dt){
       Game.particles.explosion(nearest.x, nearest.y, pet.color);
       pet.attackFlash = 0.15;
       AudioSys.bossHit();
-      pet.atkTimer = pet.atkCooldown;
+      pet.atkTimer = pet.atkCooldown / evoMult;
     } else {
       pet.atkTimer = 0.3; // re-check soon rather than waiting a full cooldown
     }
@@ -668,6 +715,7 @@ function winBossFight(){
   SAVE.coins += 300; SAVE.gems += 15;
   Game.coinsThisRun += 300; Game.gemsThisRun += 15;
   grantAccountXp(150);
+  if (Game.pet) grantPetXp(Game.pet.id, Game.coinsThisRun*0.15);
   if (Game.mode === 'story' && Game.stage){
     SAVE.storyProgress[Game.stage.id] = 3;
   }
@@ -686,6 +734,7 @@ function finishStoryDistanceStage(){
   SAVE.storyProgress[Game.stage.id] = Math.max(prevStars, stars);
   SAVE.bestWorldDistance[Game.worldId] = Math.max(SAVE.bestWorldDistance[Game.worldId]||0, Game.distance);
   grantAccountXp(80);
+  if (Game.pet) grantPetXp(Game.pet.id, Game.coinsThisRun*0.15);
   updateMissionAchievementProgress();
   persist();
   setTimeout(()=> onRunFinished(true), 900);
@@ -708,6 +757,12 @@ function endRun(completed){
 
   const xpGain = Math.floor(Game.distance/10 + Game.score/5);
   const leveledUp = grantAccountXp(xpGain);
+  if (Game.pet) grantPetXp(Game.pet.id, Game.coinsThisRun*0.15);
+
+  if (Game.mode==='endless' && Game.ghostSamples.length > 10 &&
+      (!SAVE.ghostReplay || Game.score > SAVE.ghostReplay.score)){
+    SAVE.ghostReplay = { score: Math.floor(Game.score), samples: Game.ghostSamples };
+  }
   grantHeroXp(SAVE.selectedHero, xpGain);
   if (leveledUp) AudioSys.levelUp();
 
@@ -843,6 +898,16 @@ function renderGame(g){
   });
 
   if (Game.boss) drawBoss(g, Game.boss);
+
+  // ghost replay — a faint echo of your best Endless run, purely visual
+  if (Game.ghostPlayback && Game.ghostPlayback.samples.length){
+    const s = Game.ghostPlayback.samples[Game.ghostPlayback.idx];
+    if (s){
+      g.save(); g.globalAlpha = 0.32;
+      drawHero(g, Game.player.x - 46, s.y, 60, Game.player.charDef, Game.player.legPhase, s.sliding, true, false);
+      g.restore();
+    }
+  }
 
   Game.particles.render(g);
 

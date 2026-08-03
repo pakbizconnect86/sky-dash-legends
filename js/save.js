@@ -33,6 +33,7 @@ function defaultSave(){
 
     unlockedPets: ['dragon'],
     selectedPet: 'dragon',
+    petXp: {}, // petId -> accumulated xp, drives pet evolution stages
 
     startingPowerupCharges: {}, // kind -> count of purchased one-run starter charges
 
@@ -40,6 +41,7 @@ function defaultSave(){
     bestCombo: 0,
 
     highScores: { endless:0, timeTrial:0, survival:0, story:0 },
+    ghostReplay: null, // { score, samples:[{t,y,sliding}] } — best Endless run, for the ghost echo
     leaderboard: [],         // [{mode, score, date}]
 
     storyProgress: {},       // stageId -> stars (0-3)
@@ -63,6 +65,7 @@ function defaultSave(){
       screenShake: true,
       vibration: true,
       showFps: false,
+      fpsCap: 60, // 60 | 30 — throttles the simulation/render loop for battery saving
       quality: 'high' // 'high' | 'low' — affects particle density for low-end devices
     }
   };
@@ -143,6 +146,27 @@ function grantHeroXp(heroId, amount){
 function heroLevel(heroId){
   const xp = SAVE.heroLevels[heroId] || 0;
   return 1 + Math.floor(xp / 500); // every 500 xp = +1 hero level
+}
+
+/* ---------------- PET EVOLUTION ----------------
+   Pets gain a slice of every run's coin haul as XP. Every level bumps
+   their radius/attack speed slightly, and every 2 levels they "evolve"
+   into a new visual/name tier shown in the Shop.                     */
+const PET_EVOLUTION_STAGES = ['Hatchling', 'Adult', 'Ascended'];
+function grantPetXp(petId, amount){
+  if (!petId) return;
+  SAVE.petXp[petId] = (SAVE.petXp[petId] || 0) + Math.max(0, Math.round(amount));
+}
+function petLevel(petId){
+  const xp = SAVE.petXp[petId] || 0;
+  return Math.min(6, 1 + Math.floor(xp / 300));
+}
+function petEvolutionStage(petId){
+  const lvl = petLevel(petId);
+  return PET_EVOLUTION_STAGES[Math.min(2, Math.floor((lvl-1)/2))];
+}
+function petEvolutionMult(petId){
+  return 1 + (petLevel(petId)-1) * 0.08; // +8% radius/attack-speed per level, up to +40% at level 6
 }
 
 /* ---------------- UPGRADES ----------------

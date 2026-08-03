@@ -94,31 +94,45 @@ const WORLDS = [
    Each hero has a unique passive ability applied by game.js.
    `cost` is in gems (premium currency).                          */
 const CHARACTERS = [
-  { id:'blaze', name:'Blaze', cost:0,   body:'#ff6b4d', accent:'#c93a1e',
+  { id:'blaze', name:'Blaze', cost:0,   body:'#ff6b4d', accent:'#c93a1e', rarity:'common',
     ability:'ember_start', abilityDesc:'Starts every run with a 3s Speed Boost.' },
-  { id:'aqua',  name:'Aqua',  cost:250, body:'#4dc9ff', accent:'#1a7fbf',
+  { id:'aqua',  name:'Aqua',  cost:250, body:'#4dc9ff', accent:'#1a7fbf', rarity:'common',
     ability:'shield_plus', abilityDesc:'Shield power-ups last 50% longer.' },
-  { id:'volt',  name:'Volt',  cost:400, body:'#ffe14d', accent:'#c9a51a',
+  { id:'volt',  name:'Volt',  cost:400, body:'#ffe14d', accent:'#c9a51a', rarity:'common',
     ability:'magnet_plus', abilityDesc:'Magnet radius increased by 50%.' },
-  { id:'terra', name:'Terra', cost:600, body:'#8a5a2b', accent:'#5c3b1a',
+  { id:'terra', name:'Terra', cost:600, body:'#8a5a2b', accent:'#5c3b1a', rarity:'rare',
     ability:'triple_jump', abilityDesc:'Gains a third mid-air jump.' },
-  { id:'frost', name:'Frost', cost:800, body:'#a6e8ff', accent:'#4fa9cf',
+  { id:'frost', name:'Frost', cost:800, body:'#a6e8ff', accent:'#4fa9cf', rarity:'rare',
     ability:'freeze_plus', abilityDesc:'Freeze Time power-ups last 50% longer.' },
-  { id:'nova',  name:'Nova',  cost:1200,body:'#c78aff', accent:'#7a3ec9',
+  { id:'gust',  name:'Gust',  cost:950, body:'#d6ffe8', accent:'#5ec990', rarity:'rare',
+    ability:'dash_plus', abilityDesc:'Dash cooldown reduced by 30%.' },
+  { id:'nova',  name:'Nova',  cost:1200,body:'#c78aff', accent:'#7a3ec9', rarity:'rare',
     ability:'gem_plus', abilityDesc:'Earns 20% more gems from every run.' },
-  { id:'ember', name:'Ember', cost:1500,body:'#ff3d3d', accent:'#8a1a1a',
+  { id:'ember', name:'Ember', cost:1500,body:'#ff3d3d', accent:'#8a1a1a', rarity:'epic',
     ability:'revive_discount', abilityDesc:'Coin-revive costs 30% less.' },
-  { id:'gale',  name:'Gale',  cost:1800,body:'#c9ffe0', accent:'#3ec98f',
+  { id:'gale',  name:'Gale',  cost:1800,body:'#c9ffe0', accent:'#3ec98f', rarity:'epic',
     ability:'combo_plus', abilityDesc:'Combo meter builds 25% faster.' },
-  { id:'onyx',  name:'Onyx',  cost:2200,body:'#4a4a5e', accent:'#1a1a26',
+  { id:'onyx',  name:'Onyx',  cost:2200,body:'#4a4a5e', accent:'#1a1a26', rarity:'epic',
     ability:'invuln_plus', abilityDesc:'Post-hit invulnerability lasts longer.' },
-  { id:'lumen', name:'Lumen', cost:2600,body:'#fff3b0', accent:'#d9a000',
+  { id:'lumen', name:'Lumen', cost:2600,body:'#fff3b0', accent:'#d9a000', rarity:'epic',
     ability:'coin_plus', abilityDesc:'Earns 20% more coins from every run.' },
-  { id:'rook',  name:'Rook',  cost:3000,body:'#7a8aa0', accent:'#3a4a5e',
+  { id:'rook',  name:'Rook',  cost:3000,body:'#7a8aa0', accent:'#3a4a5e', rarity:'legendary',
     ability:'extra_heart', abilityDesc:'Starts every run with +1 heart.' },
-  { id:'vex',   name:'Vex',   cost:3600,body:'#ff5ad6', accent:'#8a1a6e',
-    ability:'powerup_plus', abilityDesc:'Power-up drop chance increased.' }
+  { id:'vex',   name:'Vex',   cost:3600,body:'#ff5ad6', accent:'#8a1a6e', rarity:'legendary',
+    ability:'powerup_plus', abilityDesc:'Power-up drop chance increased.' },
+  { id:'seren', name:'Seren', cost:4200,body:'#b0d8ff', accent:'#4a78c9', rarity:'legendary',
+    ability:'checkpoint_plus', abilityDesc:'Story-mode checkpoints save 15% further back.' },
+  { id:'ashen', name:'Ashen', cost:4800,body:'#ffb347', accent:'#a85a1a', rarity:'legendary',
+    ability:'streak_plus', abilityDesc:'Daily streak bonus coins increased by 25%.' },
+  { id:'zephyr',name:'Zephyr',cost:5500,body:'#ffe14d', accent:'#7a3ec9', rarity:'legendary',
+    ability:'all_rounder', abilityDesc:'Small +10% bonus to speed, magnet, and coins.' }
 ];
+const RARITY_INFO = {
+  common:    { label:'Common',    color:'#8a94a8' },
+  rare:      { label:'Rare',      color:'#4fa9cf' },
+  epic:      { label:'Epic',      color:'#a678ff' },
+  legendary: { label:'Legendary', color:'#ffb347' }
+};
 
 /* ---------------- COMPANIONS / PETS ----------------
    Passive helpers that orbit the hero. Bought with gems, equip one
