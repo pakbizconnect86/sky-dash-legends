@@ -31,6 +31,17 @@ canvas{ display:block; touch-action:none; }
   text-shadow:0 0 30px rgba(140,107,255,.7); animation:introFade 2.2s ease forwards; opacity:0; transform:scale(.8); }
 .intro-logo span{ color:#ffd23f; }
 .intro-sub{ color:#9fb3ff; letter-spacing:4px; font-size:12px; font-weight:700; opacity:0; animation:introFade2 2.2s ease forwards; animation-delay:.6s; }
+
+.studio-logo{ font-size:clamp(20px,6vw,32px); color:#fff; letter-spacing:2px; text-align:center;
+  animation:studioPop 1.4s ease forwards; opacity:0; }
+.studio-logo span{ color:#7be0b8; }
+@keyframes studioPop{ 0%{ opacity:0; transform:scale(.7);} 30%{opacity:1; transform:scale(1.08);} 70%{opacity:1; transform:scale(1);} 100%{opacity:0;} }
+
+.loading-wrap{ width:80%; max-width:320px; display:flex; flex-direction:column; align-items:center; gap:14px; }
+.loading-title{ color:#fff; font-size:16px; letter-spacing:2px; text-shadow:0 0 20px rgba(140,107,255,.6); }
+.loading-bar-track{ width:100%; height:8px; background:rgba(255,255,255,.15); border-radius:6px; overflow:hidden; }
+.loading-bar-fill{ height:100%; width:0%; background:linear-gradient(90deg,#7be0b8,#3fbf8f); border-radius:6px; transition:width .3s ease; }
+.loading-tip{ color:#9fb3ff; font-size:12px; text-align:center; min-height:32px; }
 @keyframes introFade{ 0%{opacity:0; transform:scale(.8);} 60%{opacity:1; transform:scale(1.04);} 100%{opacity:1; transform:scale(1);} }
 @keyframes introFade2{ 0%{opacity:0;} 100%{opacity:1;} }
 
@@ -91,6 +102,7 @@ canvas{ display:block; touch-action:none; }
 .char-avatar{ width:52px; height:52px; border-radius:14px; flex-shrink:0; }
 .char-info{ flex:1; min-width:0; }
 .char-name{ font-family:'Baloo 2'; font-weight:700; color:var(--ink); font-size:15px; }
+.rarity-tag{ font-size:9px; font-weight:800; border:1px solid; border-radius:8px; padding:1px 6px; margin-left:4px; vertical-align:middle; }
 .char-desc{ font-size:11px; color:#7a869c; line-height:1.3; }
 .char-action{ flex-shrink:0; display:flex; flex-direction:column; gap:4px; align-items:flex-end; }
 
@@ -203,6 +215,7 @@ canvas{ display:block; touch-action:none; }
   z-index:20; background:rgba(0,0,0,.55); color:#7be0b8; font-family:'Baloo 2'; font-weight:700;
   font-size:11px; padding:3px 8px; border-radius:8px; pointer-events:none;
 }
+.screenshot-hidden{ opacity:0 !important; pointer-events:none !important; }
 
 ::-webkit-scrollbar{ width:6px; }
 ::-webkit-scrollbar-thumb{ background:#c3cede; border-radius:4px; }
